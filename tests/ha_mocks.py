@@ -254,6 +254,7 @@ def mock_homeassistant():
         SELECT = "select"
         BUTTON = "button"
         CAMERA = "camera"
+        IMAGE = "image"
 
     # UnitOfTime stub
     class UnitOfTime:
