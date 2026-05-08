@@ -9,14 +9,14 @@
 # the one pinned below, it will be deleted and recreated.
 #
 # Usage (from WSL):
-#   cd /mnt/c/Users/coper/Documents/GitHub/ff-5mp-hass
+#   cd /mnt/c/Users/coper/Documents/GitHub/1flashforge_printers/ff-5mp-hass
 #   bash scripts/setup-dev.sh
 # =============================================================================
 set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HASS_DIR="$REPO_ROOT/homeassistant"
-API_DIR="/mnt/c/Users/coper/Documents/GitHub/ff-5mp-api-py"
+API_DIR="/mnt/c/Users/coper/Documents/GitHub/1flashforge_printers/ff-5mp-api-py"
 
 # HA Core 2026.4+ requires Python 3.14.2+. Bump these together when upgrading.
 PYTHON_BIN="python3.14"

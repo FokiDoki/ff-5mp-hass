@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-05-08
+
+### Added
+- New `image` entity exposing the g-code thumbnail of the currently printing file. Fetched on demand via the printer's `/gcodeThumb` HTTP endpoint and cached per-filename so the cache only invalidates when the active file changes.
+
 ## [1.1.7] - 2026-04-27
 
 ### Fixed

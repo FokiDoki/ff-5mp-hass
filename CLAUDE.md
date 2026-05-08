@@ -5,7 +5,7 @@ Guidance for AI coding assistants working in this repository.
 ## Current State (January 2025)
 - Integration **version 1.1.2** is published and HACS-ready.
 - Provides a complete Home Assistant experience for FlashForge printers using the **HTTP API only**.
-- Entities shipped: **29 total** (19 sensors, 4 binary sensors, 2 switches, 3 buttons, 1 MJPEG camera).
+- Entities shipped: **30 total** (19 sensors, 4 binary sensors, 2 switches, 3 buttons, 1 MJPEG camera, 1 image).
 - UI config flow supports automatic discovery, manual entry, credential validation, and an adjustable polling interval (5–300 s, default 10 s).
 - Depends on `flashforge-python-api>=1.0.2` from the companion repository `ff-5mp-api-py`.
 
