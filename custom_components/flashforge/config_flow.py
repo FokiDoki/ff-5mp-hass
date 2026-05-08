@@ -32,6 +32,9 @@ SUPPORTED_PRINTER_MODELS = {
     PrinterModel.ADVENTURER_5M_PRO,
 }
 
+# 35 = Adventurer 5M, 36 = 5M Pro, 38 = AD5X
+SUPPORTED_PIDS = {35, 36, 38}
+
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required("discovery_mode", default="auto"): vol.In(
@@ -56,14 +59,17 @@ class UnsupportedPrinterError(ConnectionError):
     """Raised when the selected printer is outside the integration scope."""
 
 
-def _is_supported_machine_info(machine_info: Any) -> bool:
-    """Return True when the HTTP machine info matches a supported modern printer."""
-    printer_name = (getattr(machine_info, "name", "") or "").upper()
-    return bool(
-        getattr(machine_info, "is_ad5x", False)
-        or "ADVENTURER 5M" in printer_name
+def _is_supported_detail(detail: Any) -> bool:
+    """Return True when /detail identifies a supported model. Falls back to name if pid is absent."""
+    if getattr(detail, "pid", None) in SUPPORTED_PIDS:
+        return True
+
+    printer_name = (getattr(detail, "name", "") or "").upper()
+    return (
+        "ADVENTURER 5M" in printer_name
         or "ADVENTURER5M" in printer_name
         or printer_name.startswith("AD5M")
+        or printer_name == "AD5X"
     )
 
 
@@ -88,18 +94,20 @@ async def validate_connection(
     )
 
     try:
-        # Query printer status via HTTP API
+        detail_response = await client.info.get_detail_response()
+        if detail_response is None or detail_response.detail is None:
+            raise ConnectionError("Failed to retrieve printer information")
+
+        if not _is_supported_detail(detail_response.detail):
+            raise UnsupportedPrinterError(
+                "Only AD5X, Adventurer 5M, and Adventurer 5M Pro printers are supported"
+            )
+
         machine_info = await client.info.get()
         if machine_info is None:
             raise ConnectionError("Failed to retrieve printer information")
 
-        # Cache details for consistency with the core client
         client.cache_details(machine_info)
-
-        if not _is_supported_machine_info(machine_info):
-            raise UnsupportedPrinterError(
-                "Only AD5X, Adventurer 5M, and Adventurer 5M Pro printers are supported"
-            )
 
         # Validate credentials using the product endpoint (HTTP only)
         if not await client.send_product_command():

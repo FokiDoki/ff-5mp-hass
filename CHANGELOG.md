@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-05-08
+
+### Fixed
+- Renamed printers were rejected during initial pairing as unsupported because model detection matched against the user-mutable `name` field. Detection now uses the firmware-set `pid` value from `/detail` (35 = Adventurer 5M, 36 = 5M Pro, 38 = AD5X). Refs [#13](https://github.com/GhostTypes/ff-5mp-hass/issues/13).
+
 ## [1.1.8] - 2026-05-08
 
 ### Added
