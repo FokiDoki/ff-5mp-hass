@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Bumped `flashforge-python-api` requirement to `>=1.2.3`. The library now derives `is_pro` / `is_ad5x` on `FFMachineInfo` from the firmware-set `pid` field (35 = Adventurer 5M, 36 = 5M Pro, 38 = AD5X) instead of string-matching the user-mutable printer name, mirroring the v1.1.9 config-flow fix at the API layer ([ff-5mp-api-py CHANGELOG](https://github.com/GhostTypes/ff-5mp-api-py/blob/main/CHANGELOG.md#123---2026-05-08)). Refs [#13](https://github.com/GhostTypes/ff-5mp-hass/issues/13).
+
 ## [1.1.9] - 2026-05-08
 
 ### Fixed
