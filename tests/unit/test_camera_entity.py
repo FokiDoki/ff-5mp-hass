@@ -18,8 +18,9 @@ from custom_components.flashforge.camera import FlashForgeCamera
 
 def _build_coordinator(camera_stream_url: str):
     return SimpleNamespace(
-        data=SimpleNamespace(camera_stream_url=camera_stream_url),
+        data=SimpleNamespace(camera_stream_url=camera_stream_url, pid=35),
         last_update_success=True,
+        device_model="Adventurer 5M",
     )
 
 

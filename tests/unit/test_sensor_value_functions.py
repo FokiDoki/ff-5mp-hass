@@ -49,6 +49,8 @@ class TestSensorValueFunctions:
         self.mock_data.total_print_layers = 300
         self.mock_data.print_duration = 7200  # 2 hours in seconds
         self.mock_data.print_eta = "01:30"
+        self.mock_data.estimated_time = 5400  # 90 minutes remaining
+        self.mock_data.cumulative_print_time = 7425  # 123h45m in minutes
 
         # Filament data
         self.mock_data.est_length = 1234.567
@@ -75,21 +77,21 @@ class TestSensorValueFunctions:
         raise ValueError(f"Sensor with key '{key}' not found")
 
     def test_machine_status_ready(self):
-        """Test machine_status sensor returns state name."""
+        """Test machine_status sensor returns lowercase state value (translation key)."""
         sensor = self.get_sensor_by_key("machine_status")
-        assert sensor.value_fn(self.mock_data) == "READY"
+        assert sensor.value_fn(self.mock_data) == "ready"
 
     def test_machine_status_printing(self):
         """Test machine_status sensor with PRINTING state."""
         self.mock_data.machine_state = MachineState.PRINTING
         sensor = self.get_sensor_by_key("machine_status")
-        assert sensor.value_fn(self.mock_data) == "PRINTING"
+        assert sensor.value_fn(self.mock_data) == "printing"
 
     def test_machine_status_none(self):
         """Test machine_status sensor handles None gracefully."""
         self.mock_data.machine_state = None
         sensor = self.get_sensor_by_key("machine_status")
-        assert sensor.value_fn(self.mock_data) == "UNKNOWN"
+        assert sensor.value_fn(self.mock_data) == "unknown"
 
     def test_nozzle_temperature_rounded(self):
         """Test nozzle_temperature sensor rounds to 2 decimals."""
@@ -198,32 +200,32 @@ class TestSensorValueFunctions:
         assert sensor.value_fn(self.mock_data) == 0
 
     def test_elapsed_time(self):
-        """Test elapsed_time sensor returns duration in seconds."""
+        """Test elapsed_time sensor returns int seconds from print_duration."""
         sensor = self.get_sensor_by_key("elapsed_time")
         assert sensor.value_fn(self.mock_data) == 7200
 
     def test_elapsed_time_none(self):
-        """Test elapsed_time sensor handles None."""
-        self.mock_data.print_duration = None
+        """Test elapsed_time sensor handles zero/missing print_duration."""
+        self.mock_data.print_duration = 0
         sensor = self.get_sensor_by_key("elapsed_time")
         assert sensor.value_fn(self.mock_data) == 0
 
     def test_remaining_time(self):
-        """Test remaining_time sensor returns formatted time."""
+        """Test remaining_time sensor returns int seconds from estimated_time."""
         sensor = self.get_sensor_by_key("remaining_time")
-        assert sensor.value_fn(self.mock_data) == "01:30"
+        assert sensor.value_fn(self.mock_data) == 5400
 
     def test_remaining_time_empty(self):
-        """Test remaining_time sensor handles empty string."""
-        self.mock_data.print_eta = ""
+        """Test remaining_time sensor handles zero estimated_time."""
+        self.mock_data.estimated_time = 0
         sensor = self.get_sensor_by_key("remaining_time")
-        assert sensor.value_fn(self.mock_data) == "00:00"
+        assert sensor.value_fn(self.mock_data) == 0
 
     def test_remaining_time_none(self):
-        """Test remaining_time sensor handles None."""
-        self.mock_data.print_eta = None
+        """Test remaining_time sensor handles None estimated_time."""
+        self.mock_data.estimated_time = None
         sensor = self.get_sensor_by_key("remaining_time")
-        assert sensor.value_fn(self.mock_data) == "00:00"
+        assert sensor.value_fn(self.mock_data) == 0
 
     def test_filament_length_rounded(self):
         """Test filament_length sensor rounds to 2 decimals."""
@@ -339,18 +341,18 @@ class TestSensorValueFunctions:
         assert sensor.value_fn(self.mock_data) == 0
 
     def test_lifetime_runtime(self):
-        """Test lifetime_runtime sensor returns formatted time."""
+        """Test lifetime_runtime sensor returns the formatted string from the library."""
         sensor = self.get_sensor_by_key("lifetime_runtime")
         assert sensor.value_fn(self.mock_data) == "123h:45m"
 
     def test_lifetime_runtime_empty(self):
-        """Test lifetime_runtime sensor handles empty string."""
+        """Test lifetime_runtime sensor handles empty formatted_total_run_time."""
         self.mock_data.formatted_total_run_time = ""
         sensor = self.get_sensor_by_key("lifetime_runtime")
         assert sensor.value_fn(self.mock_data) == "0h:0m"
 
     def test_lifetime_runtime_none(self):
-        """Test lifetime_runtime sensor handles None."""
+        """Test lifetime_runtime sensor handles None formatted_total_run_time."""
         self.mock_data.formatted_total_run_time = None
         sensor = self.get_sensor_by_key("lifetime_runtime")
         assert sensor.value_fn(self.mock_data) == "0h:0m"
@@ -362,17 +364,21 @@ class TestSensorValueFunctions:
 
     def test_sensor_count(self):
         """Verify we have the expected number of sensors."""
-        assert len(SENSORS) == 19, "Expected 19 sensors"
+        assert len(SENSORS) == 28, (
+            "Expected 28 sensors (operational + diagnostic + completion/fans/tvoc/ifs/ip)"
+        )
 
     def test_all_sensors_have_keys(self):
         """Verify all sensors have unique keys."""
         keys = [sensor.key for sensor in SENSORS]
         assert len(keys) == len(set(keys)), "Duplicate sensor keys found"
 
-    def test_all_sensors_have_names(self):
-        """Verify all sensors have names."""
+    def test_all_sensors_have_translation_keys(self):
+        """Verify all sensors declare a translation_key."""
         for sensor in SENSORS:
-            assert sensor.name, f"Sensor '{sensor.key}' missing name"
+            assert sensor.translation_key, (
+                f"Sensor '{sensor.key}' missing translation_key"
+            )
 
     def test_all_sensors_have_icons(self):
         """Verify all sensors have icons."""

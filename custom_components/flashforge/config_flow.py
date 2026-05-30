@@ -21,6 +21,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     CONF_OVERRIDE_LED_AVAILABILITY,
+    SUPPORTED_PIDS,
 )
 from .util import async_close_flashforge_client
 
@@ -31,9 +32,6 @@ SUPPORTED_PRINTER_MODELS = {
     PrinterModel.ADVENTURER_5M,
     PrinterModel.ADVENTURER_5M_PRO,
 }
-
-# 35 = Adventurer 5M, 36 = 5M Pro, 38 = AD5X
-SUPPORTED_PIDS = {35, 36, 38}
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -347,6 +345,106 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="manual",
             data_schema=STEP_MANUAL_DATA_SCHEMA,
             errors=errors,
+        )
+
+    async def async_step_reauth(
+        self, entry_data: dict[str, Any]
+    ) -> FlowResult:
+        """Handle a reauthentication trigger."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Prompt the user for an updated check code."""
+        errors: dict[str, str] = {}
+        existing_entry = self._get_reauth_entry()
+
+        if user_input is not None and existing_entry is not None:
+            candidate = {
+                CONF_NAME: existing_entry.data.get(CONF_NAME, DEFAULT_NAME),
+                CONF_IP_ADDRESS: existing_entry.data[CONF_IP_ADDRESS],
+                CONF_SERIAL_NUMBER: existing_entry.data[CONF_SERIAL_NUMBER],
+                CONF_CHECK_CODE: user_input[CONF_CHECK_CODE],
+            }
+            try:
+                await validate_connection(self.hass, candidate)
+            except UnsupportedPrinterError:
+                errors["base"] = "unsupported_printer"
+            except ConnectionError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Unexpected error during reauth")
+                errors["base"] = "unknown"
+            else:
+                return self.async_update_reload_and_abort(
+                    existing_entry,
+                    data={**existing_entry.data, CONF_CHECK_CODE: user_input[CONF_CHECK_CODE]},
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_CHECK_CODE): cv.string}),
+            errors=errors,
+            description_placeholders={
+                "name": (existing_entry.data.get(CONF_NAME) if existing_entry else "")
+                or DEFAULT_NAME,
+            },
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Update the printer's IP and check code in place."""
+        errors: dict[str, str] = {}
+        existing_entry = self._get_reconfigure_entry()
+        if existing_entry is None:
+            return self.async_abort(reason="reconfigure_no_entry")
+
+        if user_input is not None:
+            candidate = {
+                CONF_NAME: existing_entry.data.get(CONF_NAME, DEFAULT_NAME),
+                CONF_IP_ADDRESS: user_input[CONF_IP_ADDRESS],
+                CONF_SERIAL_NUMBER: existing_entry.data[CONF_SERIAL_NUMBER],
+                CONF_CHECK_CODE: user_input[CONF_CHECK_CODE],
+            }
+            try:
+                await validate_connection(self.hass, candidate)
+            except UnsupportedPrinterError:
+                errors["base"] = "unsupported_printer"
+            except ConnectionError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Unexpected error during reconfigure")
+                errors["base"] = "unknown"
+            else:
+                return self.async_update_reload_and_abort(
+                    existing_entry,
+                    data={
+                        **existing_entry.data,
+                        CONF_IP_ADDRESS: user_input[CONF_IP_ADDRESS],
+                        CONF_CHECK_CODE: user_input[CONF_CHECK_CODE],
+                    },
+                )
+
+        defaults = existing_entry.data
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_IP_ADDRESS, default=defaults.get(CONF_IP_ADDRESS, "")
+                    ): cv.string,
+                    vol.Required(
+                        CONF_CHECK_CODE, default=defaults.get(CONF_CHECK_CODE, "")
+                    ): cv.string,
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "name": defaults.get(CONF_NAME, DEFAULT_NAME),
+                "serial": defaults.get(CONF_SERIAL_NUMBER, ""),
+            },
         )
 
     @staticmethod

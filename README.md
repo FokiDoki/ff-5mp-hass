@@ -35,9 +35,9 @@
     <th>Details</th>
   </tr>
   <tr>
-    <td rowspan="3"><b>Monitoring</b></td>
-    <td>19 Sensors</td>
-    <td>Real-time temperature monitoring, print progress, filament tracking, lifetime statistics</td>
+    <td rowspan="4"><b>Monitoring</b></td>
+    <td>28 Sensors</td>
+    <td>Real-time temperatures, print progress, filament tracking, fan speeds, air quality (5M Pro TVOC), active IFS slot, print completion time, lifetime statistics, and diagnostics</td>
   </tr>
   <tr>
     <td>4 Binary Sensors</td>
@@ -46,6 +46,10 @@
   <tr>
     <td>Live Camera Feed</td>
     <td>MJPEG stream auto-detected from the printer-reported camera stream URL or the standard OEM fallback endpoint when firmware omits it</td>
+  </tr>
+  <tr>
+    <td>5 Image Entities</td>
+    <td>Active g-code thumbnail, plus 4 AD5X IFS slot color swatches (filament color + material label)</td>
   </tr>
   <tr>
     <td rowspan="3"><b>Control</b></td>

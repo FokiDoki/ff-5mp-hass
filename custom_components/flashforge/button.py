@@ -16,6 +16,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import FlashForgeDataUpdateCoordinator
+from .util import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,25 +31,25 @@ class FlashForgeButtonEntityDescription(ButtonEntityDescription):
 BUTTONS: tuple[FlashForgeButtonEntityDescription, ...] = (
     FlashForgeButtonEntityDescription(
         key="pause_print",
-        name="Pause Print",
+        translation_key="pause_print",
         icon="mdi:pause",
         press_fn=lambda client: client.job_control.pause_print_job(),
     ),
     FlashForgeButtonEntityDescription(
         key="resume_print",
-        name="Resume Print",
+        translation_key="resume_print",
         icon="mdi:play",
         press_fn=lambda client: client.job_control.resume_print_job(),
     ),
     FlashForgeButtonEntityDescription(
         key="cancel_print",
-        name="Cancel Print",
+        translation_key="cancel_print",
         icon="mdi:stop",
         press_fn=lambda client: client.job_control.cancel_print_job(),
     ),
     FlashForgeButtonEntityDescription(
         key="clear_status",
-        name="Clear Status",
+        translation_key="clear_status",
         icon="mdi:notification-clear-all",
         press_fn=lambda client: client.job_control.clear_platform(),
     ),
@@ -94,16 +95,7 @@ class FlashForgeButton(CoordinatorEntity[FlashForgeDataUpdateCoordinator], Butto
         self.entity_description = description
         self._client = client
         self._attr_unique_id = f"{entry_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry_id)},
-            "name": printer_name,
-            "manufacturer": "FlashForge",
-            "model": (
-                coordinator.data.name
-                if coordinator.data and getattr(coordinator.data, "name", None)
-                else "Unknown"
-            ),
-        }
+        self._attr_device_info = build_device_info(coordinator, printer_name, entry_id)
 
     @property
     def available(self) -> bool:

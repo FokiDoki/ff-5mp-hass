@@ -17,6 +17,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import FlashForgeDataUpdateCoordinator
+from .util import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class FlashForgeSwitchEntityDescription(SwitchEntityDescription):
 SWITCHES: tuple[FlashForgeSwitchEntityDescription, ...] = (
     FlashForgeSwitchEntityDescription(
         key="led",
-        name="LED",
+        translation_key="led",
         icon="mdi:lightbulb",
         is_on_fn=lambda data: bool(getattr(data, "lights_on", False)),
         turn_on_fn=lambda client: client.control.set_led_on(),
@@ -43,7 +44,7 @@ SWITCHES: tuple[FlashForgeSwitchEntityDescription, ...] = (
     ),
     FlashForgeSwitchEntityDescription(
         key="camera",
-        name="Camera",
+        translation_key="camera",
         icon="mdi:camera",
         is_on_fn=lambda data: bool(getattr(data, "camera_stream_url", "")),
         turn_on_fn=lambda client: client.control.turn_camera_on(),
@@ -92,16 +93,7 @@ class FlashForgeSwitch(CoordinatorEntity[FlashForgeDataUpdateCoordinator], Switc
         self.entity_description = description
         self._client = client
         self._attr_unique_id = f"{entry_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry_id)},
-            "name": printer_name,
-            "manufacturer": "FlashForge",
-            "model": (
-                coordinator.data.name
-                if coordinator.data and getattr(coordinator.data, "name", None)
-                else "Unknown"
-            ),
-        }
+        self._attr_device_info = build_device_info(coordinator, printer_name, entry_id)
 
     @property
     def is_on(self) -> bool | None:

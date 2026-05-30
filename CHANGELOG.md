@@ -7,8 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-30
+
+### Added
+- **AD5X IFS material station entities** (AD5X only):
+  - 4 `image` entities, one per slot, that render a labeled color swatch (filament hex color background + material name overlay, e.g. "PLA"). Empty slots render as a neutral "EMPTY" tile. Swatches are PNG-encoded with Pillow on a background executor and cached so re-renders only happen when the slot's material or color changes. Material name, color, and `has_filament` are also surfaced via `extra_state_attributes` for templating.
+  - **Active IFS Slot** sensor — integer 1–4 of the slot currently being printed from, 0 when idle.
+- **Print Completion Time** sensor (`device_class=TIMESTAMP`) — the absolute wall-clock time at which the active print is expected to finish, rounded to the nearest minute. Only populated while a print is active (printing / heating / pausing / paused); idle otherwise.
+- **Cooling Fan Speed** sensor (universal, `%`) — the part-cooling fan duty cycle.
+- **Chamber Fan Speed** sensor (Adventurer 5M Pro only, `%`).
+- **TVOC** sensor (Adventurer 5M Pro only, `device_class=VOLATILE_ORGANIC_COMPOUNDS`, µg/m³) — air-quality reading from the Pro's onboard sensor.
+- **Diagnostic sensors:** `firmware_version`, `free_disk_space`, `ip_address`, and `error_code` (the last disabled by default; pairs with the existing `Error` binary sensor for actionable detail).
+- **Diagnostics download support** (`diagnostics.py`) — downloadable from the device page, with `check_code`, `serial_number`, MAC/IP, and cloud registration codes redacted.
+- **Reauthentication flow** — when the printer rejects the check code, HA can prompt for a new one without removing and re-adding the integration.
+- **Reconfigure flow** — IP and check code can be updated in place (e.g. after a DHCP shift).
+- Hardware-only sensors and entities are gated at setup time: AD5X-only entities (the 4 IFS slot images and Active IFS Slot sensor) are only created on AD5X printers; Adventurer 5M Pro-only sensors (TVOC, Chamber Fan Speed) are only created on 5M Pro printers.
+
 ### Changed
-- Bumped `flashforge-python-api` requirement to `>=1.2.3`. The library now derives `is_pro` / `is_ad5x` on `FFMachineInfo` from the firmware-set `pid` field (35 = Adventurer 5M, 36 = 5M Pro, 38 = AD5X) instead of string-matching the user-mutable printer name, mirroring the v1.1.9 config-flow fix at the API layer ([ff-5mp-api-py CHANGELOG](https://github.com/GhostTypes/ff-5mp-api-py/blob/main/CHANGELOG.md#123---2026-05-08)). Refs [#13](https://github.com/GhostTypes/ff-5mp-hass/issues/13).
+- **Full entity translations across every platform (Gold quality scale).** Every entity now declares a `translation_key` and resolves its display name (and, where applicable, state values) through `strings.json` / `translations/en.json` instead of carrying a hardcoded `name`. Covers all sensors, binary sensors, the LED switch, all buttons, the filtration select (with translated state labels: Off / Internal / External), the camera, and the image entities. Machine-status sensor states are translated as well (Ready / Busy / Calibrating / Error / Heating / Printing / Pausing / Paused / Cancelled / Completed / Unknown).
+- **Sensor type audit** — corrected device classes, units, and value formats so HA renders, graphs, and templates correctly:
+  - `machine_status` is now `device_class=ENUM` with explicit `options` (the 11 `MachineState` values), enabling proper UI rendering and history graphs.
+  - `elapsed_time` and `remaining_time` now expose **numeric durations in seconds** with `device_class=DURATION`, so templates / automations can do real arithmetic instead of parsing colon strings (e.g. `notify when remaining < 600`). **Breaking:** any user template that depended on the old `"HH:MM"` string format for these will need updating. `lifetime_runtime` remains a human-readable string ("818h:11m") since HA's default sensor card doesn't auto-format DURATION values into a friendly form and a many-digit number of minutes/seconds reads worse than the formatted string.
+  - `filament_weight` gained `device_class=WEIGHT` + `UnitOfMass.GRAMS`.
+  - `filament_length` and `lifetime_filament` gained `device_class=DISTANCE` + `UnitOfLength.METERS`.
+  - `z_offset` now uses `UnitOfLength.MILLIMETERS` (was a literal `"mm"` string).
+  - `free_disk_space` is now a numeric `device_class=DATA_SIZE` sensor in `UnitOfInformation.GIGABYTES` (was a pre-formatted string with no unit), matching the printer's reported unit.
+  - Nozzle and bed temperature sensors now declare `device_class=temperature` for proper HA UI rendering.
+  - `print_speed` now uses the `PERCENTAGE` constant rather than a literal `"%"`.
+- Device `model` is now derived from the firmware-set `pid` (35 = Adventurer 5M, 36 = 5M Pro, 38 = AD5X) and resolved dynamically on every read, so it no longer permanently reads "Unknown" if the first refresh fails. Camera and image entities now report the model, which they were previously missing.
+- Refactored `device_info` construction into a shared helper, eliminating duplication across all entity platforms.
+- Bumped `flashforge-python-api` requirement to `>=1.2.3`. The library now derives `is_pro` / `is_ad5x` on `FFMachineInfo` from the firmware-set `pid` field instead of string-matching the user-mutable printer name, mirroring the v1.1.9 config-flow fix at the API layer ([ff-5mp-api-py CHANGELOG](https://github.com/GhostTypes/ff-5mp-api-py/blob/main/CHANGELOG.md#123---2026-05-08)). Refs [#13](https://github.com/GhostTypes/ff-5mp-hass/issues/13).
 
 ## [1.1.9] - 2026-05-08
 

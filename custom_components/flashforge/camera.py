@@ -9,6 +9,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import FlashForgeDataUpdateCoordinator
+from .util import build_device_info
 
 
 async def async_setup_entry(
@@ -41,20 +42,16 @@ class FlashForgeCamera(CoordinatorEntity[FlashForgeDataUpdateCoordinator], Mjpeg
         """Initialize the camera."""
         CoordinatorEntity.__init__(self, coordinator)
         self._attr_unique_id = f"{entry_id}_camera"
-        self._attr_name = "Camera"
+        self._attr_translation_key = "camera"
 
         MjpegCamera.__init__(
             self,
-            name=self._attr_name,
+            name="Camera",
             mjpeg_url=self._current_stream_url() or "http://127.0.0.1/",
             still_image_url=None,
         )
 
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry_id)},
-            "name": printer_name,
-            "manufacturer": "FlashForge",
-        }
+        self._attr_device_info = build_device_info(coordinator, printer_name, entry_id)
 
     @property
     def available(self) -> bool:

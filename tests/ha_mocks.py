@@ -154,6 +154,20 @@ class SelectEntity(Entity):
     pass
 
 
+class LightEntity(Entity):
+    """Stub for homeassistant.components.light.LightEntity."""
+
+    pass
+
+
+class ColorMode:
+    """Stub for homeassistant.components.light.ColorMode."""
+
+    RGB = "rgb"
+    ONOFF = "onoff"
+    BRIGHTNESS = "brightness"
+
+
 # Stub enum classes for device and state classes
 class SensorStateClass:
     """Stub for homeassistant.components.sensor.SensorStateClass."""
@@ -170,6 +184,12 @@ class SensorDeviceClass:
     TEMPERATURE = "temperature"
     ENERGY = "energy"
     POWER = "power"
+    TIMESTAMP = "timestamp"
+    ENUM = "enum"
+    DISTANCE = "distance"
+    WEIGHT = "weight"
+    DATA_SIZE = "data_size"
+    VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 
 
 class BinarySensorDeviceClass:
@@ -182,52 +202,47 @@ class BinarySensorDeviceClass:
 
 # Stub classes for entity descriptions (needed for dataclass inheritance)
 @dataclass
-class SensorEntityDescription:
-    """Stub for homeassistant.components.sensor.SensorEntityDescription."""
-
+class _BaseEntityDescription:
     key: str = ""
     name: str | None = None
     icon: str | None = None
+    translation_key: str | None = None
+    entity_category: Any | None = None
+    entity_registry_enabled_default: bool = True
+
+
+@dataclass
+class SensorEntityDescription(_BaseEntityDescription):
+    """Stub for homeassistant.components.sensor.SensorEntityDescription."""
+
     device_class: Any | None = None
     state_class: Any | None = None
     native_unit_of_measurement: str | None = None
+    options: list[str] | None = None
+    suggested_display_precision: int | None = None
 
 
 @dataclass
-class BinarySensorEntityDescription:
+class BinarySensorEntityDescription(_BaseEntityDescription):
     """Stub for homeassistant.components.binary_sensor.BinarySensorEntityDescription."""
 
-    key: str = ""
-    name: str | None = None
-    icon: str | None = None
     device_class: Any | None = None
 
 
 @dataclass
-class SwitchEntityDescription:
+class SwitchEntityDescription(_BaseEntityDescription):
     """Stub for homeassistant.components.switch.SwitchEntityDescription."""
 
-    key: str = ""
-    name: str | None = None
-    icon: str | None = None
-
 
 @dataclass
-class ButtonEntityDescription:
+class ButtonEntityDescription(_BaseEntityDescription):
     """Stub for homeassistant.components.button.ButtonEntityDescription."""
 
-    key: str = ""
-    name: str | None = None
-    icon: str | None = None
-
 
 @dataclass
-class SelectEntityDescription:
+class SelectEntityDescription(_BaseEntityDescription):
     """Stub for homeassistant.components.select.SelectEntityDescription."""
 
-    key: str = ""
-    name: str | None = None
-    icon: str | None = None
     options: list[str] | None = None
 
 
@@ -255,6 +270,7 @@ def mock_homeassistant():
         BUTTON = "button"
         CAMERA = "camera"
         IMAGE = "image"
+        LIGHT = "light"
 
     # UnitOfTime stub
     class UnitOfTime:
@@ -262,8 +278,36 @@ def mock_homeassistant():
         MINUTES = "min"
         HOURS = "h"
 
+    class UnitOfTemperature:
+        CELSIUS = "°C"
+        FAHRENHEIT = "°F"
+
+    class UnitOfMass:
+        GRAMS = "g"
+        KILOGRAMS = "kg"
+
+    class UnitOfLength:
+        MILLIMETERS = "mm"
+        METERS = "m"
+
+    class UnitOfInformation:
+        BYTES = "B"
+        KILOBYTES = "kB"
+        MEGABYTES = "MB"
+        GIGABYTES = "GB"
+
+    class EntityCategory:
+        DIAGNOSTIC = "diagnostic"
+        CONFIG = "config"
+
     const_module.Platform = Platform
     const_module.UnitOfTime = UnitOfTime
+    const_module.UnitOfTemperature = UnitOfTemperature
+    const_module.UnitOfMass = UnitOfMass
+    const_module.UnitOfLength = UnitOfLength
+    const_module.UnitOfInformation = UnitOfInformation
+    const_module.EntityCategory = EntityCategory
+    const_module.CONCENTRATION_MICROGRAMS_PER_CUBIC_METER = "µg/m³"
     sys.modules["homeassistant.const"] = const_module
 
     # Config and setup
@@ -332,6 +376,11 @@ def mock_homeassistant():
     select_module.SelectEntityDescription = SelectEntityDescription
     select_module.SelectEntity = SelectEntity
     sys.modules["homeassistant.components.select"] = select_module
+
+    light_module = MagicMock()
+    light_module.LightEntity = LightEntity
+    light_module.ColorMode = ColorMode
+    sys.modules["homeassistant.components.light"] = light_module
 
     camera_module = MagicMock()
     camera_module.Camera = Camera

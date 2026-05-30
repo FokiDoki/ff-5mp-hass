@@ -29,3 +29,12 @@ STATE_IDLE = "READY"
 STATE_PRINTING = "BUILDING_FROM_SD"
 STATE_PAUSED = "PAUSED"
 STATE_ERROR = "ERROR"
+
+MANUFACTURER = "FlashForge"
+
+PRINTER_MODEL_NAMES: dict[int, str] = {
+    35: "Adventurer 5M",
+    36: "Adventurer 5M Pro",
+    38: "AD5X",
+}
+SUPPORTED_PIDS = frozenset(PRINTER_MODEL_NAMES)

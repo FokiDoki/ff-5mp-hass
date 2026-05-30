@@ -2,20 +2,22 @@
 
 Guidance for AI coding assistants working in this repository.
 
-## Current State (January 2025)
-- Integration **version 1.1.2** is published and HACS-ready.
+## Current State (May 2026)
+- Integration **version 1.2.0** (in-flight; not yet tagged).
 - Provides a complete Home Assistant experience for FlashForge printers using the **HTTP API only**.
-- Entities shipped: **30 total** (19 sensors, 4 binary sensors, 2 switches, 3 buttons, 1 MJPEG camera, 1 image).
+- Entities shipped: **45 total** (28 sensors, 4 binary sensors, 2 switches, 4 buttons, 1 select, 1 MJPEG camera, 5 images — the g-code thumbnail plus 4 AD5X IFS slot color swatches).
+- Diagnostics download supported (`diagnostics.py`), with credentials and identifiers redacted.
+- Reauthentication and reconfigure flows supported in addition to the original setup paths.
 - UI config flow supports automatic discovery, manual entry, credential validation, and an adjustable polling interval (5–300 s, default 10 s).
-- Depends on `flashforge-python-api>=1.0.2` from the companion repository `ff-5mp-api-py`.
+- Depends on `flashforge-python-api>=1.2.3` from the companion repository `ff-5mp-api-py`.
 
 ## Development Requirements
-- **Home Assistant Core**: 2025.12.4 (latest stable as of December 2025)
-- **Python**: 3.13.2+ (required by HA Core 2025.12.4)
+- **Home Assistant Core**: 2026.4.2 (current stable)
+- **Python**: 3.14.2+ (required by HA Core 2026.4.x)
 - **Platform**: WSL2 on Windows (required for local testing with mirrored networking)
 - **API Library**: `ff-5mp-api-py` installed in editable mode for live development
 
-> **TODO (next session):** The local WSL dev sandbox under `homeassistant/` is still on Python 3.13 + HA 2025.12.4. `scripts/setup-dev.sh` has been updated to target Python 3.14 + HA 2026.4.2 (the current floor for HA Core, since 2026.4.x requires Python 3.14.2+) and will auto-recreate the stale venv on first run. Next time work resumes here: install `python3.14` in WSL via deadsnakes, re-run `bash scripts/setup-dev.sh`, verify HA starts and the integration loads, then update this section + the WSL2 walkthrough below to reflect the new baseline.
+The local WSL dev sandbox under `homeassistant/` runs Python 3.14 + HA 2026.4.2. `scripts/setup-dev.sh` provisions this baseline and auto-recreates the venv if it is stale. Verified working: HA starts and the integration loads on this baseline.
 
 ## AI Development Guidelines
 **When working on Home Assistant integration code** (anything in `custom_components/flashforge/`):
@@ -28,7 +30,7 @@ Guidance for AI coding assistants working in this repository.
 - No special HA knowledge required
 
 **Path conventions**:
-- **CRITICAL**: This repository is developed on Windows. Always use Windows-style paths in Bash commands: `C:\Users\Cope\Documents\GitHub\ff-5mp-hass`
+- **CRITICAL**: This repository is developed on Windows. Always use Windows-style paths in Bash commands: `C:\Users\coper\Documents\GitHub\1flashforge_printers\ff-5mp-hass`
 - **NEVER** use Unix-style paths like `/mnt/c/Users/Cope/...` - these will fail
 - WSL2 commands in documentation are for reference only; actual development commands must use Windows paths
 
@@ -36,7 +38,7 @@ Treat this file as the living source of truth for workflows and expectations—u
 
 ## Repository Layout Reference
 - `custom_components/flashforge/` – Integration source (entities, coordinator, config flow, localization).
-- `homeassistant/` – Local Home Assistant sandbox (WSL2 only: Python 3.13 venv, config, symlinked integration) for manual validation.
+- `homeassistant/` – Local Home Assistant sandbox (WSL2 only: Python 3.14 venv, config, symlinked integration) for manual validation.
 - `scripts/` – Utility scripts for network discovery and diagnostics.
 - `README.md` – Public documentation aligned with the published build.
 - `CHANGELOG.md` – Release history (must match `manifest.json` versioning).
@@ -49,12 +51,15 @@ Treat this file as the living source of truth for workflows and expectations—u
   - Credential validation before config entry creation.
   - Options flow exposes adjustable polling (5–300 s).
 - **Monitoring**
-  - 19 sensors covering status, temperatures, progress, layers, timing, filament metrics, lifetime stats.
+  - 28 sensors covering status, temperatures, progress, layers, timing, filament metrics, fan speeds, air quality (5M Pro TVOC), active IFS slot, print completion time, lifetime stats, plus diagnostic sensors (`firmware_version`, `free_disk_space`, `ip_address`, `error_code`).
   - 4 binary sensors tracking printing, online, error, and paused states.
+  - 1 image entity for the active g-code thumbnail (fetched on demand, cached per filename).
+  - 4 AD5X IFS slot image entities — labeled color swatches (filament hex color + material name overlay) rendered with Pillow in an executor and cached per `(material, color)` tuple.
   - Entities grouped under a single device with manufacturer/model metadata.
 - **Control**
-  - LED and filtration switches with capability detection (graceful “unavailable” for unsupported models).
-  - Pause/resume/cancel buttons with post-action refresh.
+  - LED switch with capability detection (graceful "unavailable" for unsupported models, with an option to override the check).
+  - Filtration as a `select` entity with Off / Internal / External states (AD5X only).
+  - Pause / resume / cancel / clear-status buttons with post-action refresh.
   - MJPEG camera entity targeting `http://<ip>:8080/?action=stream`.
 - **Architecture**
   - HTTP API only (`FlashForgeClient.info/control/job_control`).
@@ -70,18 +75,21 @@ Treat this file as the living source of truth for workflows and expectations—u
 
 ## Core Modules and Responsibilities
 - `__init__.py` – Config entry setup, HTTP client initialization, coordinator registration, teardown.
-- `config_flow.py` – Discovery + manual onboarding, credential validation via HTTP, options flow for scan interval.
+- `config_flow.py` – Discovery + manual onboarding, reauth + reconfigure flows, credential validation via HTTP, options flow (scan interval + LED-availability override). Enforces `SUPPORTED_PIDS` early via `_is_supported_detail()`.
 - `coordinator.py` – `DataUpdateCoordinator` wrapping `FlashForgeClient.info.get()` with graceful error handling and cleanup.
-- `sensor.py` – 19 sensor entities. Modify the `SENSORS` tuple, translations, and docs together when changing sensors.
+- `sensor.py` – 28 sensor entities (operational + diagnostic). Modify the `SENSORS` tuple, translations, and docs together when changing sensors.
 - `binary_sensor.py` – 4 machine-state binary sensors (printing, online, error, paused).
-- `switch.py` – LED and filtration switches with client capability checks.
-- `button.py` – Pause/resume/cancel commands; request a refresh after each action.
+- `switch.py` – LED switch with client capability check (capability check can be overridden via options).
+- `select.py` – Filtration mode select (Off / Internal / External, AD5X only).
+- `button.py` – Pause / resume / cancel / clear-status commands; request a refresh after each action.
 - `camera.py` – MJPEG camera entity (`http://<ip>:8080/?action=stream` by default).
-- `util.py` – Shared helpers (currently HTTP session disposal).
-- `strings.json` / `translations/en.json` – Keep UI copy synchronized between minimal strings and translation files.
+- `image.py` – Hosts the active-print g-code thumbnail entity AND the 4 AD5X IFS slot swatch entities. Swatches are PNG-encoded by `render_swatch_bytes()` (Pillow) inside an executor; both entity types cache rendered bytes and only invalidate on input change.
+- `diagnostics.py` – HA diagnostics download payload, with `check_code`, `serial_number`, MAC/IP, and cloud registration codes redacted.
+- `util.py` – Shared helpers: `async_close_flashforge_client()` for HTTP session disposal, `build_device_info()` for the per-platform device-info dict.
+- `strings.json` / `translations/en.json` – Keep UI copy synchronized between minimal strings and translation files. Every entity carries a `translation_key`; `name`s never set manually on entities.
 
 ## External Dependencies & Linked Projects
-- **flashforge-python-api (ff-5mp-api-py)** – Located at `C:\Users\Cope\Documents\GitHub\ff-5mp-api-py`. Supplies the async HTTP client, discovery helpers, models (`FFMachineInfo`, `MachineState`, etc.). Do not duplicate API logic in this repository—import from the library.
+- **flashforge-python-api (ff-5mp-api-py)** – Located at `C:\Users\coper\Documents\GitHub\1flashforge_printers\ff-5mp-api-py`. Supplies the async HTTP client, discovery helpers, models (`FFMachineInfo`, `MachineState`, etc.). Do not duplicate API logic in this repository—import from the library.
 - **Companion library** – `ff-5mp-api-py` (FlashForge HTTP API client).
 
 ## Development Workflow
@@ -90,20 +98,20 @@ Treat this file as the living source of truth for workflows and expectations—u
 The local Home Assistant instance runs in **WSL2 only** with the following setup:
 
 1. **Python Requirements**
-   - Home Assistant Core 2025.12.4+ requires Python 3.13.2+
-   - Install Python 3.13 in WSL2:
+   - Home Assistant Core 2026.4.2+ requires Python 3.14.2+
+   - Install Python 3.14 in WSL2:
      ```bash
      sudo apt update
      sudo apt install software-properties-common -y
      sudo add-apt-repository ppa:deadsnakes/ppa -y
      sudo apt update
-     sudo apt install python3.13 python3.13-venv python3.13-dev -y
+     sudo apt install python3.14 python3.14-venv python3.14-dev -y
      sudo apt install build-essential -y  # Required for compiling C extensions
      ```
-   - Set Python 3.13 as default (optional, via alias):
+   - Set Python 3.14 as default (optional, via alias):
      ```bash
-     echo 'alias python=python3.13' >> ~/.bashrc
-     echo 'alias python3=python3.13' >> ~/.bashrc
+     echo 'alias python=python3.14' >> ~/.bashrc
+     echo 'alias python3=python3.14' >> ~/.bashrc
      source ~/.bashrc
      ```
 
@@ -114,7 +122,7 @@ The local Home Assistant instance runs in **WSL2 only** with the following setup
    **Configure Mirrored Networking:**
    ```powershell
    # In PowerShell or CMD, create/edit .wslconfig
-   notepad C:\Users\Cope\.wslconfig
+   notepad C:\Users\coper\.wslconfig
    ```
 
    Add this configuration:
@@ -147,24 +155,24 @@ The local Home Assistant instance runs in **WSL2 only** with the following setup
 3. **Initial Setup (from scratch)**
    ```bash
    # Navigate to repo root
-   cd /mnt/c/Users/Cope/Documents/GitHub/ff-5mp-hass
+   cd /mnt/c/Users/coper/Documents/GitHub/1flashforge_printers/ff-5mp-hass
 
    # Create fresh homeassistant directory if needed
    mkdir homeassistant
    cd homeassistant
 
-   # Create Python 3.13 virtual environment
-   python3.13 -m venv venv
+   # Create Python 3.14 virtual environment
+   python3.14 -m venv venv
    source venv/bin/activate
 
    # Upgrade pip
    pip install --upgrade pip
 
-   # Install Home Assistant Core 2025.12.4
-   pip install homeassistant==2025.12.4
+   # Install Home Assistant Core 2026.4.2
+   pip install homeassistant==2026.4.2
 
    # Install ff-5mp-api-py in editable mode (for development)
-   pip install -e /mnt/c/Users/Cope/Documents/GitHub/ff-5mp-api-py
+   pip install -e /mnt/c/Users/coper/Documents/GitHub/1flashforge_printers/ff-5mp-api-py
 
    # Create config directory structure
    mkdir -p config/custom_components
@@ -204,7 +212,7 @@ The local Home Assistant instance runs in **WSL2 only** with the following setup
 
 5. **Starting Home Assistant**
    ```bash
-   cd /mnt/c/Users/Cope/Documents/GitHub/ff-5mp-hass/homeassistant
+   cd /mnt/c/Users/coper/Documents/GitHub/1flashforge_printers/ff-5mp-hass/homeassistant
    source venv/bin/activate
    hass -c config
    ```
@@ -274,11 +282,18 @@ pytest tests/unit/ --cov=custom_components.flashforge --cov-report=term-missing
 pytest tests/unit/test_sensor_value_functions.py -v
 ```
 
-**Current coverage (101 tests total):**
-- `tests/unit/test_discovery.py` - 18 tests for printer discovery protocol
-- `tests/unit/test_sensor_value_functions.py` - 56 tests for sensor value extraction
-- `tests/unit/test_binary_sensor_value_functions.py` - 19 tests for binary sensor logic
-- `tests/unit/test_util.py` - 8 tests for utility functions
+**Current coverage (103 tests total):**
+- `tests/unit/test_discovery.py` – printer discovery protocol
+- `tests/unit/test_sensor_value_functions.py` – sensor value extraction
+- `tests/unit/test_binary_sensor_value_functions.py` – binary sensor logic
+- `tests/unit/test_util.py` – utility functions (`async_close_flashforge_client`, `build_device_info`)
+- `tests/unit/test_camera_entity.py` – camera entity behavior
+- `tests/unit/test_config_flow_supported_printers.py` – PID-based supported-printer gate
+- `tests/unit/test_coordinator.py` – coordinator update + error paths
+- `tests/unit/test_setup_entry.py` – integration setup wiring
+- `tests/unit/test_platform_registration.py` – platform list sanity
+- `tests/unit/test_select_availability.py` – filtration select availability
+- `tests/unit/test_switch_availability.py` – LED switch availability with override
 
 **Test dependencies** (`requirements-test.txt`):
 - Core: `pytest`, `pytest-asyncio`, `pytest-cov`
@@ -322,11 +337,14 @@ pytest tests/unit/test_sensor_value_functions.py -v
 2. Install the integration (copy folder or use dev symlink) and restart Home Assistant.
 3. Add the integration via UI; test both discovery and manual paths.
 4. Open the created device and verify entities:
-   - Sensors: machine status, nozzle temps/targets, bed temps/targets, progress, file, current/total layers, elapsed/remaining time, filament length/weight, print speed, z offset, nozzle size, filament type, lifetime stats.
+   - Sensors: machine status, nozzle temps/targets, bed temps/targets, progress, file, current/total layers, elapsed/remaining time, filament length/weight, print speed, z offset, nozzle size, filament type, lifetime stats, plus diagnostic sensors (firmware version, free disk space, error code).
    - Binary sensors: printing, online, error, paused.
-   - Switches: LED and filtration (may show unavailable if unsupported).
-   - Buttons: pause, resume, cancel.
+   - Switch: LED (may show unavailable on unsupported models unless override is enabled).
+   - Select: filtration mode — Off / Internal / External (AD5X only).
+   - Buttons: pause, resume, cancel, clear status.
    - Camera: MJPEG feed reachable.
+   - Image: g-code thumbnail of the active print.
+   - Image (AD5X only): four IFS slot swatches (`image.*_ifs_slot_1..4`) showing material color + label, "EMPTY" tile for unloaded slots.
 5. Trigger control actions (pause/resume/cancel, switches) and ensure states refresh.
 6. Observe coordinator error handling by temporarily disconnecting the printer and confirming entities surface availability correctly.
 
@@ -338,6 +356,10 @@ pytest tests/unit/test_sensor_value_functions.py -v
 ## Implementation Guard Rails
 - **HTTP-first policy** – Do not introduce direct TCP/G-code communication here. If unavoidable, extend the API library (`ff-5mp-api-py`) and consume it via HTTP-style helpers.
 - **Coordinator as source of truth** – Entities derive state from the coordinator’s latest `FFMachineInfo`. Avoid storing custom copies of printer state in entities.
+- **PID for model identity, never the printer name** – Modern HTTP printers report a stable firmware-set integer `pid` on `/detail` (35 = Adventurer 5M, 36 = 5M Pro, 38 = AD5X). The integration enforces this in TWO places that should both stay in sync:
+  - `config_flow.py` `_is_supported_detail()` reads the raw `/detail` payload during pairing and rejects PIDs not in `SUPPORTED_PIDS = {35, 36, 38}`. This is the early gate — runs before any `FFMachineInfo` parsing happens.
+  - The library (`flashforge-python-api>=1.2.3`) populates `FFMachineInfo.is_pro` / `is_ad5x` / `pid` from the same value. This is the runtime gate — used by `switch.py` for LED / filtration availability.
+  - Both gates are needed: the config-flow gate stops unsupported hardware from being added at all; the runtime gate keeps capability flags accurate after pairing. Do NOT substring-match `info.name` — it's user-mutable and broke detection in v1.1.8 (see issue #13 / v1.1.9 fix). When new modern PIDs ship, update `SUPPORTED_PIDS` here AND coordinate a library bump.
 - **Error handling** – Wrap connection issues in `ConfigEntryNotReady`, `ConnectionError`, or `UpdateFailed` so Home Assistant retries gracefully.
 - **Entity additions**
   - Add to the appropriate entity tuple.

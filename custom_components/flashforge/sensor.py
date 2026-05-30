@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 import logging
 from typing import Any
 
-from flashforge.models import FFMachineInfo
+from flashforge.models import FFMachineInfo, MachineState
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -15,15 +16,64 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfTime
+from homeassistant.const import (
+    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfInformation,
+    UnitOfLength,
+    UnitOfMass,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import FlashForgeDataUpdateCoordinator
+from .util import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
+
+MACHINE_STATE_OPTIONS = [state.value for state in MachineState]
+
+
+def _parse_disk_space_mb(raw: str | float | int | None) -> float | None:
+    """Convert the library's pre-formatted disk-space value back into a float (MB)."""
+    if raw is None or raw == "":
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _completion_time(data: FFMachineInfo) -> datetime | None:
+    """Return the absolute completion timestamp, rounded to the minute."""
+    if not data.estimated_time:
+        return None
+    if data.machine_state not in (
+        MachineState.PRINTING,
+        MachineState.PAUSED,
+        MachineState.PAUSING,
+        MachineState.HEATING,
+    ):
+        return None
+    ts = data.completion_time
+    if ts is None:
+        return None
+    return ts.replace(second=0, microsecond=0)
+
+
+def _active_ifs_slot(data: FFMachineInfo) -> int | None:
+    """Return the active IFS slot (1-4), 0 when idle, None when not AD5X."""
+    if not getattr(data, "is_ad5x", False):
+        return None
+    station = getattr(data, "matl_station_info", None)
+    if station is None:
+        return 0
+    return getattr(station, "current_slot", 0) or 0
 
 
 @dataclass
@@ -31,50 +81,57 @@ class FlashForgeSensorEntityDescription(SensorEntityDescription):
     """Describes FlashForge sensor entity."""
 
     value_fn: Callable[[FFMachineInfo], Any] | None = None
+    availability_fn: Callable[[FFMachineInfo], bool] | None = None
 
 
 SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
     FlashForgeSensorEntityDescription(
         key="machine_status",
-        name="Machine Status",
+        translation_key="machine_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=MACHINE_STATE_OPTIONS,
         icon="mdi:printer-3d",
-        value_fn=lambda data: data.machine_state.name if data.machine_state else "UNKNOWN",
+        value_fn=lambda data: data.machine_state.value if data.machine_state else "unknown",
     ),
     FlashForgeSensorEntityDescription(
         key="nozzle_temperature",
-        name="Nozzle Temperature",
-        native_unit_of_measurement="°C",
+        translation_key="nozzle_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:thermometer",
         value_fn=lambda data: round(data.extruder.current, 2) if data.extruder else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="nozzle_target_temperature",
-        name="Nozzle Target Temperature",
-        native_unit_of_measurement="°C",
+        translation_key="nozzle_target_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:thermometer",
         value_fn=lambda data: round(data.extruder.set, 2) if data.extruder else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="bed_temperature",
-        name="Bed Temperature",
-        native_unit_of_measurement="°C",
+        translation_key="bed_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:thermometer",
         value_fn=lambda data: round(data.print_bed.current, 2) if data.print_bed else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="bed_target_temperature",
-        name="Bed Target Temperature",
-        native_unit_of_measurement="°C",
+        translation_key="bed_target_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:thermometer",
         value_fn=lambda data: round(data.print_bed.set, 2) if data.print_bed else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="print_progress",
-        name="Print Progress",
+        translation_key="print_progress",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:percent-circle",
@@ -82,96 +139,175 @@ SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
     ),
     FlashForgeSensorEntityDescription(
         key="current_file",
-        name="Current File",
+        translation_key="current_file",
         icon="mdi:file-arrow-up-down",
         value_fn=lambda data: data.print_file_name if data.print_file_name else "None",
     ),
     FlashForgeSensorEntityDescription(
         key="current_layer",
-        name="Current Layer",
+        translation_key="current_layer",
         icon="mdi:layers",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.current_print_layer if data.current_print_layer is not None else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="total_layers",
-        name="Total Layers",
+        translation_key="total_layers",
         icon="mdi:layers-triple",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.total_print_layers if data.total_print_layers is not None else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="elapsed_time",
-        name="Elapsed Time",
+        translation_key="elapsed_time",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.SECONDS,
-        state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:timer",
-        value_fn=lambda data: data.print_duration if data.print_duration is not None else 0,
+        value_fn=lambda data: int(data.print_duration) if data.print_duration else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="remaining_time",
-        name="Remaining Time",
+        translation_key="remaining_time",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
         icon="mdi:timer-sand",
-        value_fn=lambda data: data.print_eta if data.print_eta else "00:00",
+        value_fn=lambda data: int(data.estimated_time) if data.estimated_time else 0,
+    ),
+    FlashForgeSensorEntityDescription(
+        key="print_completion_time",
+        translation_key="print_completion_time",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:calendar-clock",
+        value_fn=_completion_time,
     ),
     FlashForgeSensorEntityDescription(
         key="filament_length",
-        name="Filament Length",
-        icon="mdi:ruler",
-        native_unit_of_measurement="m",
+        translation_key="filament_length",
+        device_class=SensorDeviceClass.DISTANCE,
+        native_unit_of_measurement=UnitOfLength.METERS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:ruler",
         value_fn=lambda data: round(data.est_length, 2) if data.est_length else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="filament_weight",
-        name="Filament Weight",
-        icon="mdi:weight-gram",
-        native_unit_of_measurement="g",
+        translation_key="filament_weight",
+        device_class=SensorDeviceClass.WEIGHT,
+        native_unit_of_measurement=UnitOfMass.GRAMS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:weight-gram",
         value_fn=lambda data: round(data.est_weight, 2) if data.est_weight else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="print_speed",
-        name="Print Speed",
+        translation_key="print_speed",
         icon="mdi:speedometer",
-        native_unit_of_measurement="%",
+        native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.print_speed_adjust if data.print_speed_adjust else 100,
     ),
     FlashForgeSensorEntityDescription(
+        key="cooling_fan_speed",
+        translation_key="cooling_fan_speed",
+        icon="mdi:fan",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: int(getattr(data, "cooling_fan_speed", 0) or 0),
+    ),
+    FlashForgeSensorEntityDescription(
+        key="chamber_fan_speed",
+        translation_key="chamber_fan_speed",
+        icon="mdi:fan",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda data: int(getattr(data, "chamber_fan_speed", 0) or 0),
+        availability_fn=lambda data: bool(getattr(data, "is_pro", False)),
+    ),
+    FlashForgeSensorEntityDescription(
+        key="tvoc",
+        translation_key="tvoc",
+        device_class=SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:air-filter",
+        value_fn=lambda data: float(getattr(data, "tvoc", 0) or 0),
+        availability_fn=lambda data: bool(getattr(data, "is_pro", False)),
+    ),
+    FlashForgeSensorEntityDescription(
         key="z_offset",
-        name="Z-Axis Offset",
+        translation_key="z_offset",
         icon="mdi:format-vertical-align-center",
-        native_unit_of_measurement="mm",
+        native_unit_of_measurement=UnitOfLength.MILLIMETERS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: round(data.z_axis_compensation, 3) if data.z_axis_compensation is not None else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="nozzle_size",
-        name="Nozzle Size",
+        translation_key="nozzle_size",
         icon="mdi:printer-3d-nozzle",
         value_fn=lambda data: data.nozzle_size if data.nozzle_size else "Unknown",
     ),
     FlashForgeSensorEntityDescription(
         key="filament_type",
-        name="Filament Type",
+        translation_key="filament_type",
         icon="mdi:printer-3d-nozzle-heat",
         value_fn=lambda data: data.filament_type if data.filament_type else "Unknown",
     ),
     FlashForgeSensorEntityDescription(
+        key="active_ifs_slot",
+        translation_key="active_ifs_slot",
+        icon="mdi:tray-full",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_active_ifs_slot,
+        availability_fn=lambda data: bool(getattr(data, "is_ad5x", False)),
+    ),
+    FlashForgeSensorEntityDescription(
         key="lifetime_filament",
-        name="Lifetime Filament Usage",
+        translation_key="lifetime_filament",
+        device_class=SensorDeviceClass.DISTANCE,
+        native_unit_of_measurement=UnitOfLength.METERS,
         icon="mdi:counter",
-        native_unit_of_measurement="m",
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_fn=lambda data: round(data.cumulative_filament, 2) if data.cumulative_filament else 0,
     ),
     FlashForgeSensorEntityDescription(
         key="lifetime_runtime",
-        name="Lifetime Runtime",
+        translation_key="lifetime_runtime",
         icon="mdi:clock-outline",
         value_fn=lambda data: data.formatted_total_run_time if data.formatted_total_run_time else "0h:0m",
+    ),
+    FlashForgeSensorEntityDescription(
+        key="firmware_version",
+        translation_key="firmware_version",
+        icon="mdi:chip",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.firmware_version if data.firmware_version else None,
+    ),
+    FlashForgeSensorEntityDescription(
+        key="ip_address",
+        translation_key="ip_address",
+        icon="mdi:ip-network",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.ip_address if data.ip_address else None,
+    ),
+    FlashForgeSensorEntityDescription(
+        key="free_disk_space",
+        translation_key="free_disk_space",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+        icon="mdi:harddisk",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: _parse_disk_space_mb(data.free_disk_space),
+    ),
+    FlashForgeSensorEntityDescription(
+        key="error_code",
+        translation_key="error_code",
+        icon="mdi:alert-octagon",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: data.error_code if data.error_code else None,
     ),
 )
 
@@ -187,9 +323,12 @@ async def async_setup_entry(
     ]
     printer_name: str = hass.data[DOMAIN][entry.entry_id]["name"]
 
+    data = coordinator.data
     entities = [
         FlashForgeSensor(coordinator, description, printer_name, entry.entry_id)
         for description in SENSORS
+        if description.availability_fn is None
+        or (data is not None and description.availability_fn(data))
     ]
 
     async_add_entities(entities)
@@ -212,16 +351,7 @@ class FlashForgeSensor(CoordinatorEntity[FlashForgeDataUpdateCoordinator], Senso
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry_id)},
-            "name": printer_name,
-            "manufacturer": "FlashForge",
-            "model": (
-                coordinator.data.name
-                if coordinator.data and getattr(coordinator.data, "name", None)
-                else "Unknown"
-            ),
-        }
+        self._attr_device_info = build_device_info(coordinator, printer_name, entry_id)
 
     @property
     def native_value(self) -> Any:

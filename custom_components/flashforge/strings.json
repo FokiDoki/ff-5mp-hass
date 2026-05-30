@@ -35,6 +35,21 @@
           "serial_number": "Serial Number",
           "check_code": "Check Code"
         }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate FlashForge",
+        "description": "The check code for {name} is no longer accepted. Enter the current check code from the printer's LAN mode screen.",
+        "data": {
+          "check_code": "Check Code"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure FlashForge",
+        "description": "Update connection details for {name} (Serial: {serial}).",
+        "data": {
+          "ip_address": "IP Address",
+          "check_code": "Check Code"
+        }
       }
     },
     "error": {
@@ -46,7 +61,10 @@
       "unknown": "An unexpected error occurred. Please try again."
     },
     "abort": {
-      "already_configured": "This printer is already configured"
+      "already_configured": "This printer is already configured",
+      "reconfigure_no_entry": "Could not locate the existing config entry to reconfigure",
+      "reauth_successful": "Reauthentication successful",
+      "reconfigure_successful": "Reconfiguration successful"
     }
   },
   "options": {
@@ -62,6 +80,67 @@
     }
   },
   "entity": {
+    "sensor": {
+      "machine_status": {
+        "name": "Machine Status",
+        "state": {
+          "ready": "Ready",
+          "busy": "Busy",
+          "calibrating": "Calibrating",
+          "error": "Error",
+          "heating": "Heating",
+          "printing": "Printing",
+          "pausing": "Pausing",
+          "paused": "Paused",
+          "cancelled": "Cancelled",
+          "completed": "Completed",
+          "unknown": "Unknown"
+        }
+      },
+      "nozzle_temperature": { "name": "Nozzle Temperature" },
+      "nozzle_target_temperature": { "name": "Nozzle Target Temperature" },
+      "bed_temperature": { "name": "Bed Temperature" },
+      "bed_target_temperature": { "name": "Bed Target Temperature" },
+      "print_progress": { "name": "Print Progress" },
+      "current_file": { "name": "Current File" },
+      "current_layer": { "name": "Current Layer" },
+      "total_layers": { "name": "Total Layers" },
+      "elapsed_time": { "name": "Elapsed Time" },
+      "remaining_time": { "name": "Remaining Time" },
+      "print_completion_time": { "name": "Print Completion Time" },
+      "filament_length": { "name": "Filament Length" },
+      "filament_weight": { "name": "Filament Weight" },
+      "print_speed": { "name": "Print Speed" },
+      "cooling_fan_speed": { "name": "Cooling Fan Speed" },
+      "chamber_fan_speed": { "name": "Chamber Fan Speed" },
+      "tvoc": { "name": "TVOC" },
+      "z_offset": { "name": "Z-Axis Offset" },
+      "nozzle_size": { "name": "Nozzle Size" },
+      "filament_type": { "name": "Filament Type" },
+      "active_ifs_slot": { "name": "Active IFS Slot" },
+      "lifetime_filament": { "name": "Lifetime Filament Usage" },
+      "lifetime_runtime": { "name": "Lifetime Runtime" },
+      "firmware_version": { "name": "Firmware Version" },
+      "ip_address": { "name": "IP Address" },
+      "free_disk_space": { "name": "Free Disk Space" },
+      "error_code": { "name": "Error Code" }
+    },
+    "binary_sensor": {
+      "is_printing": { "name": "Printing" },
+      "is_online": { "name": "Online" },
+      "has_error": { "name": "Error" },
+      "is_paused": { "name": "Paused" }
+    },
+    "switch": {
+      "led": { "name": "LED" },
+      "camera": { "name": "Camera" }
+    },
+    "button": {
+      "pause_print": { "name": "Pause Print" },
+      "resume_print": { "name": "Resume Print" },
+      "cancel_print": { "name": "Cancel Print" },
+      "clear_status": { "name": "Clear Status" }
+    },
     "select": {
       "filtration_mode": {
         "name": "Filtration Mode",
@@ -71,6 +150,16 @@
           "external": "External"
         }
       }
+    },
+    "camera": {
+      "camera": { "name": "Camera" }
+    },
+    "image": {
+      "current_file_thumbnail": { "name": "Current File Thumbnail" },
+      "ifs_slot_1": { "name": "IFS Slot 1" },
+      "ifs_slot_2": { "name": "IFS Slot 2" },
+      "ifs_slot_3": { "name": "IFS Slot 3" },
+      "ifs_slot_4": { "name": "IFS Slot 4" }
     }
   }
 }

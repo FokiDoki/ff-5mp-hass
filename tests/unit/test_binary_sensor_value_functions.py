@@ -150,10 +150,12 @@ class TestBinarySensorValueFunctions:
         keys = [sensor.key for sensor in BINARY_SENSORS]
         assert len(keys) == len(set(keys)), "Duplicate binary sensor keys found"
 
-    def test_all_binary_sensors_have_names(self):
-        """Verify all binary sensors have names."""
+    def test_all_binary_sensors_have_translation_keys(self):
+        """Verify all binary sensors declare a translation_key."""
         for sensor in BINARY_SENSORS:
-            assert sensor.name, f"Binary sensor '{sensor.key}' missing name"
+            assert sensor.translation_key, (
+                f"Binary sensor '{sensor.key}' missing translation_key"
+            )
 
     def test_all_binary_sensors_have_icons(self):
         """Verify all binary sensors have icons."""

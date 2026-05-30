@@ -17,6 +17,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import FlashForgeDataUpdateCoordinator
+from .util import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class FlashForgeSelectEntityDescription(SelectEntityDescription):
 SELECTS: tuple[FlashForgeSelectEntityDescription, ...] = (
     FlashForgeSelectEntityDescription(
         key="filtration_mode",
-        name="Filtration Mode",
+        translation_key="filtration_mode",
         icon="mdi:air-filter",
         options=["Off", "Internal", "External"],
         current_fn=lambda data: (
@@ -90,16 +91,7 @@ class FlashForgeSelect(CoordinatorEntity[FlashForgeDataUpdateCoordinator], Selec
         self.entity_description = description
         self._client = client
         self._attr_unique_id = f"{entry_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry_id)},
-            "name": printer_name,
-            "manufacturer": "FlashForge",
-            "model": (
-                coordinator.data.name
-                if coordinator.data and getattr(coordinator.data, "name", None)
-                else "Unknown"
-            ),
-        }
+        self._attr_device_info = build_device_info(coordinator, printer_name, entry_id)
 
     @property
     def current_option(self) -> str | None:

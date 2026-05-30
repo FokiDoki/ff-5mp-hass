@@ -19,6 +19,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import FlashForgeDataUpdateCoordinator
+from .util import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,28 +34,28 @@ class FlashForgeBinarySensorEntityDescription(BinarySensorEntityDescription):
 BINARY_SENSORS: tuple[FlashForgeBinarySensorEntityDescription, ...] = (
     FlashForgeBinarySensorEntityDescription(
         key="is_printing",
-        name="Printing",
+        translation_key="is_printing",
         device_class=BinarySensorDeviceClass.RUNNING,
         icon="mdi:printer-3d-nozzle",
         value_fn=lambda data: data.machine_state == MachineState.PRINTING,
     ),
     FlashForgeBinarySensorEntityDescription(
         key="is_online",
-        name="Online",
+        translation_key="is_online",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         icon="mdi:network",
         value_fn=lambda data: True,  # If we have data, printer is online
     ),
     FlashForgeBinarySensorEntityDescription(
         key="has_error",
-        name="Error",
+        translation_key="has_error",
         device_class=BinarySensorDeviceClass.PROBLEM,
         icon="mdi:alert-circle",
         value_fn=lambda data: data.machine_state == MachineState.ERROR,
     ),
     FlashForgeBinarySensorEntityDescription(
         key="is_paused",
-        name="Paused",
+        translation_key="is_paused",
         icon="mdi:pause-circle",
         value_fn=lambda data: data.machine_state == MachineState.PAUSED,
     ),
@@ -99,16 +100,7 @@ class FlashForgeBinarySensor(
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry_id)},
-            "name": printer_name,
-            "manufacturer": "FlashForge",
-            "model": (
-                coordinator.data.name
-                if coordinator.data and getattr(coordinator.data, "name", None)
-                else "Unknown"
-            ),
-        }
+        self._attr_device_info = build_device_info(coordinator, printer_name, entry_id)
 
     @property
     def is_on(self) -> bool | None:
