@@ -57,6 +57,8 @@ def _completion_time(data: FFMachineInfo) -> datetime | None:
     HA 2026 rejects naive datetimes on timestamp sensors, so if the library's
     ``completion_time`` is timezone-naive we stamp it with HA's configured
     default timezone. Aware datetimes pass through unchanged.
+
+    Timezone-stamping approach adapted from pcamp96 (GhostTypes/ff-5mp-hass#15).
     """
     if not data.estimated_time:
         return None
