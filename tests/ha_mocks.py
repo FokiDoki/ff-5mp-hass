@@ -23,6 +23,7 @@ Usage:
     # Now safe to import
     from custom_components.flashforge.sensor import SENSORS
 """
+import datetime
 import sys
 from dataclasses import dataclass
 from typing import Any
@@ -198,6 +199,7 @@ class BinarySensorDeviceClass:
     RUNNING = "running"
     CONNECTIVITY = "connectivity"
     PROBLEM = "problem"
+    DOOR = "door"
 
 
 # Stub classes for entity descriptions (needed for dataclass inheritance)
@@ -391,7 +393,14 @@ def mock_homeassistant():
     sys.modules["homeassistant.components.mjpeg.camera"] = mjpeg_camera_module
 
     # Utilities and exceptions
-    sys.modules["homeassistant.util"] = MagicMock()
+    # `homeassistant.util` is imported as `dt_util` by sensor.py (naive-timestamp
+    # fix) and image.py (last-updated tracking). Give the `dt` child a real
+    # DEFAULT_TIME_ZONE and utcnow() so tests exercise real datetime objects
+    # instead of MagicMock return values.
+    util_module = MagicMock()
+    util_module.dt.DEFAULT_TIME_ZONE = datetime.timezone.utc
+    util_module.dt.utcnow = lambda: datetime.datetime.now(datetime.timezone.utc)
+    sys.modules["homeassistant.util"] = util_module
     exceptions_module = MagicMock()
     exceptions_module.ConfigEntryNotReady = ConfigEntryNotReady
     exceptions_module.ConfigEntryAuthFailed = ConfigEntryAuthFailed

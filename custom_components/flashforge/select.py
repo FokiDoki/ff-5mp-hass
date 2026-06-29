@@ -28,7 +28,7 @@ class FlashForgeSelectEntityDescription(SelectEntityDescription):
 
     current_fn: Callable[[FFMachineInfo], str | None] | None = None
     select_fn: Callable[[FlashForgeClient, str], Any] | None = None
-    availability_fn: Callable[[FlashForgeClient], bool] | None = None
+    availability_fn: Callable[[FFMachineInfo], bool] | None = None
 
 
 SELECTS: tuple[FlashForgeSelectEntityDescription, ...] = (
@@ -47,7 +47,9 @@ SELECTS: tuple[FlashForgeSelectEntityDescription, ...] = (
             else client.control.set_internal_filtration_on() if option == "Internal"
             else client.control.set_filtration_off()
         ),
-        availability_fn=lambda client: client.filtration_control,
+        availability_fn=lambda data: bool(
+            getattr(data, "is_pro", False) or getattr(data, "is_creator5_pro", False)
+        ),
     ),
 )
 
@@ -112,7 +114,7 @@ class FlashForgeSelect(CoordinatorEntity[FlashForgeDataUpdateCoordinator], Selec
 
         # Check if this feature is available on the printer
         if self.entity_description.availability_fn:
-            return self.entity_description.availability_fn(self._client)
+            return self.entity_description.availability_fn(self.coordinator.data)
 
         return True
 

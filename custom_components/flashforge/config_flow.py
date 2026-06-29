@@ -31,6 +31,8 @@ SUPPORTED_PRINTER_MODELS = {
     PrinterModel.AD5X,
     PrinterModel.ADVENTURER_5M,
     PrinterModel.ADVENTURER_5M_PRO,
+    PrinterModel.CREATOR_5,
+    PrinterModel.CREATOR_5_PRO,
 }
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
@@ -68,6 +70,7 @@ def _is_supported_detail(detail: Any) -> bool:
         or "ADVENTURER5M" in printer_name
         or printer_name.startswith("AD5M")
         or printer_name == "AD5X"
+        or "CREATOR 5" in printer_name
     )
 
 
@@ -98,7 +101,7 @@ async def validate_connection(
 
         if not _is_supported_detail(detail_response.detail):
             raise UnsupportedPrinterError(
-                "Only AD5X, Adventurer 5M, and Adventurer 5M Pro printers are supported"
+                "Only AD5X, Adventurer 5M, Adventurer 5M Pro, Creator 5, and Creator 5 Pro printers are supported"
             )
 
         machine_info = await client.info.get()

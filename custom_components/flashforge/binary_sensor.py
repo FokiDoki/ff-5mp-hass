@@ -29,6 +29,7 @@ class FlashForgeBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes FlashForge binary sensor entity."""
 
     value_fn: Callable[[FFMachineInfo], bool] | None = None
+    availability_fn: Callable[[FFMachineInfo], bool] | None = None
 
 
 BINARY_SENSORS: tuple[FlashForgeBinarySensorEntityDescription, ...] = (
@@ -58,6 +59,14 @@ BINARY_SENSORS: tuple[FlashForgeBinarySensorEntityDescription, ...] = (
         translation_key="is_paused",
         icon="mdi:pause-circle",
         value_fn=lambda data: data.machine_state == MachineState.PAUSED,
+    ),
+    FlashForgeBinarySensorEntityDescription(
+        key="door_open",
+        translation_key="door_open",
+        device_class=BinarySensorDeviceClass.DOOR,
+        icon="mdi:door",
+        value_fn=lambda data: bool(getattr(data, "door_open", False)),
+        availability_fn=lambda data: bool(getattr(data, "has_door_sensor", False)),
     ),
 )
 
@@ -120,4 +129,10 @@ class FlashForgeBinarySensor(
         if self.entity_description.key == "is_online":
             return self.coordinator.last_update_success
 
-        return self.coordinator.last_update_success and self.coordinator.data is not None
+        if not self.coordinator.last_update_success or self.coordinator.data is None:
+            return False
+
+        if self.entity_description.availability_fn:
+            return self.entity_description.availability_fn(self.coordinator.data)
+
+        return True

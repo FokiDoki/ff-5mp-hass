@@ -1,4 +1,4 @@
-"""Image platform: g-code thumbnail + AD5X IFS slot color swatches."""
+"""Image platform: g-code thumbnail + Material Station slot color swatches."""
 from __future__ import annotations
 
 from io import BytesIO
@@ -48,9 +48,9 @@ async def async_setup_entry(
     entities: list[ImageEntity] = [
         FlashForgeThumbnailImage(hass, coordinator, printer_name, entry.entry_id)
     ]
-    if coordinator.data is not None and getattr(coordinator.data, "is_ad5x", False):
+    if coordinator.data is not None and getattr(coordinator.data, "has_matl_station", False):
         entities.extend(
-            FlashForgeIFSSlotImage(
+            FlashForgeMaterialStationSlotImage(
                 hass, coordinator, printer_name, entry.entry_id, slot_id
             )
             for slot_id in range(1, IFS_SLOT_COUNT + 1)
@@ -217,10 +217,10 @@ class FlashForgeThumbnailImage(
         return data
 
 
-class FlashForgeIFSSlotImage(
+class FlashForgeMaterialStationSlotImage(
     CoordinatorEntity[FlashForgeDataUpdateCoordinator], ImageEntity
 ):
-    """Image entity rendering an AD5X IFS slot as a labeled color swatch."""
+    """Image entity rendering a Material Station slot as a labeled color swatch."""
 
     _attr_has_entity_name = True
     _attr_content_type = "image/png"

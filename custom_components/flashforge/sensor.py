@@ -30,6 +30,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from homeassistant.util import dt as dt_util
+
 from .const import DOMAIN
 from .coordinator import FlashForgeDataUpdateCoordinator
 from .util import build_device_info
@@ -50,7 +52,12 @@ def _parse_disk_space_mb(raw: str | float | int | None) -> float | None:
 
 
 def _completion_time(data: FFMachineInfo) -> datetime | None:
-    """Return the absolute completion timestamp, rounded to the minute."""
+    """Return the absolute completion timestamp, rounded to the minute.
+
+    HA 2026 rejects naive datetimes on timestamp sensors, so if the library's
+    ``completion_time`` is timezone-naive we stamp it with HA's configured
+    default timezone. Aware datetimes pass through unchanged.
+    """
     if not data.estimated_time:
         return None
     if data.machine_state not in (
@@ -63,17 +70,47 @@ def _completion_time(data: FFMachineInfo) -> datetime | None:
     ts = data.completion_time
     if ts is None:
         return None
-    return ts.replace(second=0, microsecond=0)
+    ts = ts.replace(second=0, microsecond=0)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    return ts
 
 
 def _active_ifs_slot(data: FFMachineInfo) -> int | None:
-    """Return the active IFS slot (1-4), 0 when idle, None when not AD5X."""
-    if not getattr(data, "is_ad5x", False):
+    """Return the active Material Station slot (1-4), 0 when idle, None when absent."""
+    if not getattr(data, "has_matl_station", False):
         return None
     station = getattr(data, "matl_station_info", None)
     if station is None:
         return 0
     return getattr(station, "current_slot", 0) or 0
+
+
+def _is_creator5_series(data: FFMachineInfo) -> bool:
+    """Creator 5 / Creator 5 Pro (4-tool tool-changer with a heated chamber)."""
+    return bool(getattr(data, "is_creator5", False) or getattr(data, "is_creator5_pro", False))
+
+
+def _has_air_quality(data: FFMachineInfo) -> bool:
+    """Enclosed printers with filtration + air-quality sensor: 5M Pro and Creator 5 Pro."""
+    return bool(getattr(data, "is_pro", False) or getattr(data, "is_creator5_pro", False))
+
+
+def _tool_temp_value(index: int, *, target: bool = False) -> Callable[[FFMachineInfo], float]:
+    """Build a value_fn for a Creator 5 per-toolhead temperature.
+
+    ``index`` is 0-based (T0..T3). Reads ``current`` by default, ``set`` when
+    ``target`` is True. Returns 0 when the per-tool array is absent or short.
+    """
+    attr = "set" if target else "current"
+
+    def _fn(data: FFMachineInfo) -> float:
+        tools = getattr(data, "tool_temps", None) or []
+        if index < len(tools):
+            return round(getattr(tools[index], attr, 0) or 0, 2)
+        return 0
+
+    return _fn
 
 
 @dataclass
@@ -84,7 +121,7 @@ class FlashForgeSensorEntityDescription(SensorEntityDescription):
     availability_fn: Callable[[FFMachineInfo], bool] | None = None
 
 
-SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
+_BASE_SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
     FlashForgeSensorEntityDescription(
         key="machine_status",
         translation_key="machine_status",
@@ -221,7 +258,7 @@ SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: int(getattr(data, "chamber_fan_speed", 0) or 0),
-        availability_fn=lambda data: bool(getattr(data, "is_pro", False)),
+        availability_fn=_has_air_quality,
     ),
     FlashForgeSensorEntityDescription(
         key="tvoc",
@@ -231,7 +268,7 @@ SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:air-filter",
         value_fn=lambda data: float(getattr(data, "tvoc", 0) or 0),
-        availability_fn=lambda data: bool(getattr(data, "is_pro", False)),
+        availability_fn=_has_air_quality,
     ),
     FlashForgeSensorEntityDescription(
         key="z_offset",
@@ -259,7 +296,7 @@ SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
         icon="mdi:tray-full",
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=_active_ifs_slot,
-        availability_fn=lambda data: bool(getattr(data, "is_ad5x", False)),
+        availability_fn=lambda data: bool(getattr(data, "has_matl_station", False)),
     ),
     FlashForgeSensorEntityDescription(
         key="lifetime_filament",
@@ -309,6 +346,62 @@ SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
         entity_registry_enabled_default=False,
         value_fn=lambda data: data.error_code if data.error_code else None,
     ),
+)
+
+
+# Creator 5 series: per-toolhead temperatures (4 current + 4 target).
+TOOLHEAD_SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = tuple(
+    FlashForgeSensorEntityDescription(
+        key=f"tool_{i}_temperature",
+        translation_key=f"tool_{i}_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:printer-3d-nozzle",
+        value_fn=_tool_temp_value(i - 1),
+        availability_fn=_is_creator5_series,
+    )
+    for i in range(1, 5)
+) + tuple(
+    FlashForgeSensorEntityDescription(
+        key=f"tool_{i}_target_temperature",
+        translation_key=f"tool_{i}_target_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:printer-3d-nozzle",
+        value_fn=_tool_temp_value(i - 1, target=True),
+        availability_fn=_is_creator5_series,
+    )
+    for i in range(1, 5)
+)
+
+# Creator 5 series: heated chamber (current + target).
+CHAMBER_SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
+    FlashForgeSensorEntityDescription(
+        key="chamber_temperature",
+        translation_key="chamber_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer",
+        value_fn=lambda data: round(data.chamber.current, 2) if data.chamber else 0,
+        availability_fn=_is_creator5_series,
+    ),
+    FlashForgeSensorEntityDescription(
+        key="chamber_target_temperature",
+        translation_key="chamber_target_temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:thermometer",
+        value_fn=lambda data: round(data.chamber.set, 2) if data.chamber else 0,
+        availability_fn=_is_creator5_series,
+    ),
+)
+
+SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
+    _BASE_SENSORS + TOOLHEAD_SENSORS + CHAMBER_SENSORS
 )
 
 

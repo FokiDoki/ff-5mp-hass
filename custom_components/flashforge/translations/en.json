@@ -28,7 +28,7 @@
       },
       "manual": {
         "title": "Manual Configuration",
-        "description": "Enter your AD5X, Adventurer 5M, or Adventurer 5M Pro details manually",
+        "description": "Enter your AD5X, Adventurer 5M, Adventurer 5M Pro, Creator 5, or Creator 5 Pro details manually",
         "data": {
           "name": "Printer Name",
           "ip_address": "IP Address",
@@ -55,9 +55,9 @@
     "error": {
       "cannot_connect": "Failed to connect to the printer. Please check the IP address and credentials.",
       "no_printers_found": "No FlashForge printers found on the network. Please use manual configuration.",
-      "unsupported_printers_found": "Only AD5X, Adventurer 5M, and Adventurer 5M Pro printers are supported by this integration.",
+      "unsupported_printers_found": "Only AD5X, Adventurer 5M, Adventurer 5M Pro, Creator 5, and Creator 5 Pro printers are supported by this integration.",
       "discovery_failed": "Failed to discover printers. Please use manual configuration.",
-      "unsupported_printer": "Only AD5X, Adventurer 5M, and Adventurer 5M Pro printers are supported by this integration.",
+      "unsupported_printer": "Only AD5X, Adventurer 5M, Adventurer 5M Pro, Creator 5, and Creator 5 Pro printers are supported by this integration.",
       "unknown": "An unexpected error occurred. Please try again."
     },
     "abort": {
@@ -117,19 +117,30 @@
       "z_offset": { "name": "Z-Axis Offset" },
       "nozzle_size": { "name": "Nozzle Size" },
       "filament_type": { "name": "Filament Type" },
-      "active_ifs_slot": { "name": "Active IFS Slot" },
+      "active_ifs_slot": { "name": "Active Material Station Slot" },
       "lifetime_filament": { "name": "Lifetime Filament Usage" },
       "lifetime_runtime": { "name": "Lifetime Runtime" },
       "firmware_version": { "name": "Firmware Version" },
       "ip_address": { "name": "IP Address" },
       "free_disk_space": { "name": "Free Disk Space" },
-      "error_code": { "name": "Error Code" }
+      "error_code": { "name": "Error Code" },
+      "tool_1_temperature": { "name": "Tool 1 Temperature" },
+      "tool_2_temperature": { "name": "Tool 2 Temperature" },
+      "tool_3_temperature": { "name": "Tool 3 Temperature" },
+      "tool_4_temperature": { "name": "Tool 4 Temperature" },
+      "tool_1_target_temperature": { "name": "Tool 1 Target Temperature" },
+      "tool_2_target_temperature": { "name": "Tool 2 Target Temperature" },
+      "tool_3_target_temperature": { "name": "Tool 3 Target Temperature" },
+      "tool_4_target_temperature": { "name": "Tool 4 Target Temperature" },
+      "chamber_temperature": { "name": "Chamber Temperature" },
+      "chamber_target_temperature": { "name": "Chamber Target Temperature" }
     },
     "binary_sensor": {
       "is_printing": { "name": "Printing" },
       "is_online": { "name": "Online" },
       "has_error": { "name": "Error" },
-      "is_paused": { "name": "Paused" }
+      "is_paused": { "name": "Paused" },
+      "door_open": { "name": "Door Open" }
     },
     "switch": {
       "led": { "name": "LED" },
@@ -156,10 +167,10 @@
     },
     "image": {
       "current_file_thumbnail": { "name": "Current File Thumbnail" },
-      "ifs_slot_1": { "name": "IFS Slot 1" },
-      "ifs_slot_2": { "name": "IFS Slot 2" },
-      "ifs_slot_3": { "name": "IFS Slot 3" },
-      "ifs_slot_4": { "name": "IFS Slot 4" }
+      "ifs_slot_1": { "name": "Material Station Slot 1" },
+      "ifs_slot_2": { "name": "Material Station Slot 2" },
+      "ifs_slot_3": { "name": "Material Station Slot 3" },
+      "ifs_slot_4": { "name": "Material Station Slot 4" }
     }
   }
 }

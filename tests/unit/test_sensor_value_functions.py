@@ -4,6 +4,7 @@ Tests the value_fn lambdas that transform FFMachineInfo data into sensor values.
 These are pure function tests with no Home Assistant dependencies.
 """
 import sys
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -17,7 +18,7 @@ sys.path.insert(0, str(project_root))
 from tests.ha_mocks import mock_homeassistant
 mock_homeassistant()
 
-from custom_components.flashforge.sensor import SENSORS
+from custom_components.flashforge.sensor import SENSORS, _completion_time
 from flashforge.models import MachineState
 
 
@@ -357,6 +358,79 @@ class TestSensorValueFunctions:
         sensor = self.get_sensor_by_key("lifetime_runtime")
         assert sensor.value_fn(self.mock_data) == "0h:0m"
 
+    def _setup_tool_temps(self, currents, targets=None):
+        """Populate mock_data.tool_temps with Temperature-like mocks."""
+        if targets is None:
+            targets = currents
+        self.mock_data.tool_temps = [
+            Mock(current=c, set=t) for c, t in zip(currents, targets)
+        ]
+
+    def test_tool_temperatures_current(self):
+        """Test per-tool current temperatures read tool_temps[i].current."""
+        self._setup_tool_temps([200.0, 210.55, 0.0, 195.0])
+        assert self.get_sensor_by_key("tool_1_temperature").value_fn(self.mock_data) == 200.0
+        assert self.get_sensor_by_key("tool_2_temperature").value_fn(self.mock_data) == 210.55
+        assert self.get_sensor_by_key("tool_4_temperature").value_fn(self.mock_data) == 195.0
+
+    def test_tool_temperatures_target(self):
+        """Test per-tool target temperatures read tool_temps[i].set."""
+        self._setup_tool_temps([0, 0, 0, 0], targets=[210.0, 215.0, 0.0, 200.0])
+        assert self.get_sensor_by_key("tool_2_target_temperature").value_fn(self.mock_data) == 215.0
+        assert self.get_sensor_by_key("tool_4_target_temperature").value_fn(self.mock_data) == 200.0
+
+    def test_tool_temperature_missing_array(self):
+        """tool_temps absent/short returns 0 (availability gates these to C5 anyway)."""
+        self.mock_data.tool_temps = None
+        assert self.get_sensor_by_key("tool_1_temperature").value_fn(self.mock_data) == 0
+        self._setup_tool_temps([200.0])  # only 1 tool present
+        assert self.get_sensor_by_key("tool_4_temperature").value_fn(self.mock_data) == 0
+
+    def test_chamber_temperature_rounded(self):
+        """Test chamber_temperature reads chamber.current, rounded to 2 decimals."""
+        self.mock_data.chamber = Mock()
+        self.mock_data.chamber.current = 45.678
+        self.mock_data.chamber.set = 60.0
+        assert self.get_sensor_by_key("chamber_temperature").value_fn(self.mock_data) == 45.68
+
+    def test_chamber_target_temperature(self):
+        """Test chamber_target_temperature reads chamber.set."""
+        self.mock_data.chamber = Mock()
+        self.mock_data.chamber.current = 45.0
+        self.mock_data.chamber.set = 60.5
+        assert self.get_sensor_by_key("chamber_target_temperature").value_fn(self.mock_data) == 60.5
+
+    def test_chamber_temperature_none(self):
+        """chamber absent returns 0."""
+        self.mock_data.chamber = None
+        assert self.get_sensor_by_key("chamber_temperature").value_fn(self.mock_data) == 0
+
+    def test_print_completion_time_adds_timezone_to_naive_datetime(self):
+        """Naive completion_time gets stamped with HA's default timezone (HA 2026 fix)."""
+        self.mock_data.machine_state = MachineState.PRINTING
+        self.mock_data.completion_time = datetime(2026, 6, 26, 9, 47, 12)  # naive
+        result = _completion_time(self.mock_data)
+        assert result is not None
+        assert result.tzinfo is not None
+        assert result == datetime(2026, 6, 26, 9, 47, tzinfo=result.tzinfo)
+
+    def test_print_completion_time_returns_none_when_not_printing(self):
+        """Completion time is None unless actively printing/heating."""
+        self.mock_data.machine_state = MachineState.READY
+        self.mock_data.completion_time = datetime(2026, 6, 26, 9, 47, 12)
+        assert _completion_time(self.mock_data) is None
+
+    def test_print_completion_time_preserves_aware_datetime(self):
+        """Aware datetimes pass through unchanged (tz already set)."""
+        from datetime import timedelta, timezone
+
+        self.mock_data.machine_state = MachineState.PRINTING
+        aware = datetime(2026, 6, 26, 9, 47, 12, tzinfo=timezone(timedelta(hours=-5)))
+        self.mock_data.completion_time = aware
+        result = _completion_time(self.mock_data)
+        assert result is not None
+        assert result.tzinfo is aware.tzinfo
+
     def test_all_sensors_have_value_fn(self):
         """Verify all sensors have a value_fn defined."""
         for sensor in SENSORS:
@@ -364,8 +438,8 @@ class TestSensorValueFunctions:
 
     def test_sensor_count(self):
         """Verify we have the expected number of sensors."""
-        assert len(SENSORS) == 28, (
-            "Expected 28 sensors (operational + diagnostic + completion/fans/tvoc/ifs/ip)"
+        assert len(SENSORS) == 38, (
+            "Expected 38 sensors (28 base + 8 Creator 5 toolheads + 2 chamber)"
         )
 
     def test_all_sensors_have_keys(self):

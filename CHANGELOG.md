@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - Unreleased
+
+### Added
+- **Creator 5 / Creator 5 Pro support.** Both models are now recognized via their firmware PIDs (40 = Creator 5, 41 = Creator 5 Pro) in discovery, manual setup, and the device model display. The library (`>=1.3.0`) drives these via an HTTP-only transport (the Creator 5 series exposes no TCP/8899 service).
+- **Per-toolhead temperature sensors (Creator 5 series).** 8 new sensors: `tool_1_temperature`…`tool_4_temperature` (current) and `tool_1_target_temperature`…`tool_4_target_temperature` (target), one per toolhead on the 4-tool tool-changer. Gated to the Creator 5 series.
+- **Heated chamber sensors (Creator 5 series).** `chamber_temperature` and `chamber_target_temperature`, read from the library's `chamber` Temperature pair.
+- **Door binary sensor (Creator 5 Pro only).** `binary_sensor.flashforge_door_open` (`device_class=DOOR`) — on when the lid or front door is ajar, off when both are closed. Gated on `has_door_sensor` (Creator 5 Pro only).
+- **Diagnostics** now snapshots `is_creator5`, `is_creator5_pro`, and `http_only` alongside the existing capability flags.
+
+### Changed
+- **Material Station refactor.** The AD5X-only IFS slot images and the active-slot sensor are now gated on `has_matl_station` instead of `is_ad5x`, so they also render for the Creator 5 series (which reports the same `MatlStationInfo` shape). Display names relabeled from "IFS Slot" to "Material Station Slot"; entity `unique_id`s and translation keys are unchanged, so existing AD5X entities migrate with no registry churn. The image class was renamed `FlashForgeIFSSlotImage` → `FlashForgeMaterialStationSlotImage`.
+- **Filtration / TVOC / chamber fan gating moved off the `/product` endpoint.** The printer's `/product` response is unreliable for capability detection — it misreports Creator 5 Pro filtration. These entities are now gated on model identity (`is_pro OR is_creator5_pro`) rather than the `/product`-derived `client.filtration_control` / `is_pro` flags. The `filtration_mode` select's availability now reads from coordinator data instead of the client.
+- Bumped `flashforge-python-api` requirement to `>=1.3.0`.
+
+### Fixed
+- **`print_completion_time` is now timezone-aware (HA 2026 fix).** The library's `completion_time` can arrive as a naive datetime, which Home Assistant 2026 rejects on `device_class=TIMESTAMP` sensors. Naive values are now stamped with HA's configured default timezone (`dt_util.DEFAULT_TIME_ZONE`); aware values pass through unchanged.
+
 ## [1.2.0] - 2026-05-30
 
 ### Added

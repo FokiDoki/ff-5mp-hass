@@ -37,7 +37,7 @@
   <tr>
     <td rowspan="4"><b>Monitoring</b></td>
     <td>28 Sensors</td>
-    <td>Real-time temperatures, print progress, filament tracking, fan speeds, air quality (5M Pro TVOC), active IFS slot, print completion time, lifetime statistics, and diagnostics</td>
+    <td>Real-time temperatures (per-toolhead on the Creator 5 series, plus a heated chamber), print progress, filament tracking, fan speeds, air quality (5M Pro / Creator 5 Pro TVOC), active Material Station slot, print completion time, lifetime statistics, and diagnostics</td>
   </tr>
   <tr>
     <td>4 Binary Sensors</td>
@@ -49,7 +49,7 @@
   </tr>
   <tr>
     <td>5 Image Entities</td>
-    <td>Active g-code thumbnail, plus 4 AD5X IFS slot color swatches (filament color + material label)</td>
+    <td>Active g-code thumbnail, plus 4 Material Station slot color swatches (AD5X / Creator 5 series — filament color + material label)</td>
   </tr>
   <tr>
     <td rowspan="3"><b>Control</b></td>
@@ -109,6 +109,14 @@
     <td>Supported</td>
   </tr>
   <tr>
+    <td>FlashForge Creator 5</td>
+    <td>Supported</td>
+  </tr>
+  <tr>
+    <td>FlashForge Creator 5 Pro</td>
+    <td>Supported</td>
+  </tr>
+  <tr>
     <td>Legacy TCP-only models (including Adventurer 4)</td>
     <td>Not Supported</td>
   </tr>
@@ -161,7 +169,7 @@
 | Step | Instructions |
 |------|--------------|
 | **Prerequisites: Enable LAN Mode** | Before adding the integration, you must enable LAN mode on your FlashForge printer:<br><br>1. On the printer touchscreen, go to **Settings** → **Network** → **LAN Mode**<br>2. Enable LAN mode<br>3. Note the **Check Code** (8-digit code) - you'll need this for setup<br><br>[Video Tutorial](https://www.youtube.com/watch?v=krdEGccZuKo) |
-| **Option 1: Automatic Discovery (Recommended)** | 1. Go to **Settings** → **Devices & Services** → **Integrations**<br>2. Click **+ Add Integration**<br>3. Search for **"FlashForge"**<br>4. Select your AD5X, Adventurer 5M, or Adventurer 5M Pro from the discovered list<br>5. Enter your printer's **Check Code**<br>6. Click **Submit** |
+| **Option 1: Automatic Discovery (Recommended)** | 1. Go to **Settings** → **Devices & Services** → **Integrations**<br>2. Click **+ Add Integration**<br>3. Search for **"FlashForge"**<br>4. Select your AD5X, Adventurer 5M, Adventurer 5M Pro, Creator 5, or Creator 5 Pro from the discovered list<br>5. Enter your printer's **Check Code**<br>6. Click **Submit** |
 | **Option 2: Manual Configuration** | 1. Go to **Settings** → **Devices & Services** → **Integrations**<br>2. Click **+ Add Integration**<br>3. Search for **"FlashForge"**<br>4. Select **"Configure Manually"**<br>5. Enter:<br>&nbsp;&nbsp;&nbsp;• **IP Address**: Your printer's IP (e.g., `192.168.1.100`)<br>&nbsp;&nbsp;&nbsp;• **Printer Name**: Friendly name (optional)<br>&nbsp;&nbsp;&nbsp;• **Serial Number**: From printer settings<br>&nbsp;&nbsp;&nbsp;• **Check Code**: From LAN mode settings<br>6. Click **Submit** |
 | **Configuration Options** | After setup, you can adjust settings:<br><br>1. Go to **Settings** → **Devices & Services** → **FlashForge**<br>2. Click **⋮** on your printer → **Configure**<br>3. **Scan Interval**: Update frequency in seconds (5-300, default: 10) |
 | **LED Switch Override** | If your printer's LED switch is not detected but you know it is supported, enable **Always show LED switch** in the options. This will force the LED switch to appear regardless of printer capability checks. |
@@ -203,6 +211,10 @@
 | `sensor.flashforge_filament_type` | Current filament type | - |
 | `sensor.flashforge_lifetime_filament` | Total filament used over printer lifetime | meters |
 | `sensor.flashforge_lifetime_runtime` | Total runtime over printer lifetime | - |
+| `sensor.flashforge_tool_[1-4]_temperature` | Per-toolhead current nozzle temperature (Creator 5 series) | °C |
+| `sensor.flashforge_tool_[1-4]_target_temperature` | Per-toolhead target nozzle temperature (Creator 5 series) | °C |
+| `sensor.flashforge_chamber_temperature` | Heated chamber current temperature (Creator 5 series) | °C |
+| `sensor.flashforge_chamber_target_temperature` | Heated chamber target temperature (Creator 5 series) | °C |
 
 </div>
 
@@ -220,6 +232,7 @@
 | `binary_sensor.flashforge_online` | On when printer is connected | `connectivity` |
 | `binary_sensor.flashforge_error` | On when error detected | `problem` |
 | `binary_sensor.flashforge_paused` | On when print is paused | - |
+| `binary_sensor.flashforge_door_open` | On when the lid or front door is ajar | `door` (Creator 5 Pro) |
 
 </div>
 
@@ -248,7 +261,7 @@
 
 | Entity | Description | Options | Availability |
 |--------|-------------|---------|--------------|
-| `select.flashforge_filtration_mode` | Control filtration system | Off, Internal, External | Model-dependent |
+| `select.flashforge_filtration_mode` | Control filtration system | Off, Internal, External | 5M Pro / Creator 5 Pro |
 
 </div>
 

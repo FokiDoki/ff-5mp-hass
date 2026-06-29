@@ -3,13 +3,13 @@
 Guidance for AI coding assistants working in this repository.
 
 ## Current State (May 2026)
-- Integration **version 1.2.0** (in-flight; not yet tagged).
+- Integration **version 1.3.0** (in-flight; not yet tagged).
 - Provides a complete Home Assistant experience for FlashForge printers using the **HTTP API only**.
-- Entities shipped: **45 total** (28 sensors, 4 binary sensors, 2 switches, 4 buttons, 1 select, 1 MJPEG camera, 5 images — the g-code thumbnail plus 4 AD5X IFS slot color swatches).
+- Entities shipped: **56 total** (38 sensors, 5 binary sensors, 2 switches, 4 buttons, 1 select, 1 MJPEG camera, 5 images — the g-code thumbnail plus 4 Material Station slot color swatches).
 - Diagnostics download supported (`diagnostics.py`), with credentials and identifiers redacted.
 - Reauthentication and reconfigure flows supported in addition to the original setup paths.
 - UI config flow supports automatic discovery, manual entry, credential validation, and an adjustable polling interval (5–300 s, default 10 s).
-- Depends on `flashforge-python-api>=1.2.3` from the companion repository `ff-5mp-api-py`.
+- Depends on `flashforge-python-api>=1.3.0` from the companion repository `ff-5mp-api-py`.
 
 ## Development Requirements
 - **Home Assistant Core**: 2026.4.2 (current stable)
@@ -51,10 +51,10 @@ Treat this file as the living source of truth for workflows and expectations—u
   - Credential validation before config entry creation.
   - Options flow exposes adjustable polling (5–300 s).
 - **Monitoring**
-  - 28 sensors covering status, temperatures, progress, layers, timing, filament metrics, fan speeds, air quality (5M Pro TVOC), active IFS slot, print completion time, lifetime stats, plus diagnostic sensors (`firmware_version`, `free_disk_space`, `ip_address`, `error_code`).
-  - 4 binary sensors tracking printing, online, error, and paused states.
+  - 38 sensors covering status, temperatures (per-toolhead on the Creator 5 series, plus a heated chamber), progress, layers, timing, filament metrics, fan speeds, air quality (5M Pro / Creator 5 Pro TVOC), active Material Station slot, print completion time, lifetime stats, plus diagnostic sensors (`firmware_version`, `free_disk_space`, `ip_address`, `error_code`).
+  - 5 binary sensors tracking printing, online, error, paused, and door-open (Creator 5 Pro only) states.
   - 1 image entity for the active g-code thumbnail (fetched on demand, cached per filename).
-  - 4 AD5X IFS slot image entities — labeled color swatches (filament hex color + material name overlay) rendered with Pillow in an executor and cached per `(material, color)` tuple.
+  - 4 Material Station slot image entities (AD5X / Creator 5 series) — labeled color swatches (filament hex color + material name overlay) rendered with Pillow in an executor and cached per `(material, color)` tuple.
   - Entities grouped under a single device with manufacturer/model metadata.
 - **Control**
   - LED switch with capability detection (graceful "unavailable" for unsupported models, with an option to override the check).
@@ -83,7 +83,7 @@ Treat this file as the living source of truth for workflows and expectations—u
 - `select.py` – Filtration mode select (Off / Internal / External, AD5X only).
 - `button.py` – Pause / resume / cancel / clear-status commands; request a refresh after each action.
 - `camera.py` – MJPEG camera entity (`http://<ip>:8080/?action=stream` by default).
-- `image.py` – Hosts the active-print g-code thumbnail entity AND the 4 AD5X IFS slot swatch entities. Swatches are PNG-encoded by `render_swatch_bytes()` (Pillow) inside an executor; both entity types cache rendered bytes and only invalidate on input change.
+- `image.py` – Hosts the active-print g-code thumbnail entity AND the 4 Material Station slot swatch entities (AD5X / Creator 5 series). Swatches are PNG-encoded by `render_swatch_bytes()` (Pillow) inside an executor; both entity types cache rendered bytes and only invalidate on input change.
 - `diagnostics.py` – HA diagnostics download payload, with `check_code`, `serial_number`, MAC/IP, and cloud registration codes redacted.
 - `util.py` – Shared helpers: `async_close_flashforge_client()` for HTTP session disposal, `build_device_info()` for the per-platform device-info dict.
 - `strings.json` / `translations/en.json` – Keep UI copy synchronized between minimal strings and translation files. Every entity carries a `translation_key`; `name`s never set manually on entities.

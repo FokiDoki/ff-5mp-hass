@@ -24,14 +24,29 @@ def _select_by_key(key: str):
 
 
 @pytest.mark.unit
-def test_filtration_select_availability_uses_client_capability():
-    """Filtration select availability should follow the client capability flag."""
+def test_filtration_select_availability_gated_on_model():
+    """Filtration availability follows model identity (5M Pro / Creator 5 Pro).
+
+    The printer's /product endpoint is unreliable for capability detection (it
+    misreports Creator 5 Pro filtration), so availability is derived from the
+    firmware PID / model flags rather than the /product-derived capability flag.
+    """
     filtration_select = _select_by_key("filtration_mode")
-    client = Mock()
-    client.filtration_control = False
+    fn = filtration_select.availability_fn
 
-    assert filtration_select.availability_fn(client) is False
+    # Regular models (no filtration hardware) -> unavailable
+    data = Mock(is_pro=False, is_creator5_pro=False)
+    assert fn(data) is False
 
-    client.filtration_control = True
-    assert filtration_select.availability_fn(client) is True
+    # Adventurer 5M Pro -> available
+    data = Mock(is_pro=True, is_creator5_pro=False)
+    assert fn(data) is True
+
+    # Creator 5 Pro -> available
+    data = Mock(is_pro=False, is_creator5_pro=True)
+    assert fn(data) is True
+
+    # Regular Creator 5 (heater, but no filtration) -> unavailable
+    data = Mock(is_pro=False, is_creator5_pro=False, is_creator5=True)
+    assert fn(data) is False
 

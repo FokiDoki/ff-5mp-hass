@@ -133,6 +133,27 @@ class TestBinarySensorValueFunctions:
         sensor = self.get_sensor_by_key("is_paused")
         assert sensor.value_fn(self.mock_data) is False
 
+    # door_open tests (Creator 5 Pro only)
+    def test_door_open_true_when_open(self):
+        """Test door_open sensor returns True when the printer reports the door ajar."""
+        self.mock_data.door_open = True
+        sensor = self.get_sensor_by_key("door_open")
+        assert sensor.value_fn(self.mock_data) is True
+
+    def test_door_open_false_when_closed(self):
+        """Test door_open sensor returns False when the door is closed."""
+        self.mock_data.door_open = False
+        sensor = self.get_sensor_by_key("door_open")
+        assert sensor.value_fn(self.mock_data) is False
+
+    def test_door_open_availability_gated_on_door_sensor(self):
+        """door_open is only available on printers with a confirmed door sensor (C5 Pro)."""
+        sensor = self.get_sensor_by_key("door_open")
+        self.mock_data.has_door_sensor = False
+        assert sensor.availability_fn(self.mock_data) is False
+        self.mock_data.has_door_sensor = True
+        assert sensor.availability_fn(self.mock_data) is True
+
     # Configuration validation tests
     def test_all_binary_sensors_have_value_fn(self):
         """Verify all binary sensors have a value_fn defined."""
@@ -143,7 +164,7 @@ class TestBinarySensorValueFunctions:
 
     def test_binary_sensor_count(self):
         """Verify we have the expected number of binary sensors."""
-        assert len(BINARY_SENSORS) == 4, "Expected 4 binary sensors"
+        assert len(BINARY_SENSORS) == 5, "Expected 5 binary sensors (4 base + door_open)"
 
     def test_all_binary_sensors_have_keys(self):
         """Verify all binary sensors have unique keys."""

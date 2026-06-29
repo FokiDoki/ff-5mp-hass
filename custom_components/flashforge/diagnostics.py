@@ -73,6 +73,9 @@ async def async_get_config_entry_diagnostics(
             "filtration_control": getattr(client, "filtration_control", None),
             "is_pro": getattr(client, "is_pro", None),
             "is_ad5x": getattr(client, "is_ad5x", None),
+            "is_creator5": getattr(client, "is_creator5", None),
+            "is_creator5_pro": getattr(client, "is_creator5_pro", None),
+            "http_only": getattr(client, "http_only", None),
         },
         "machine_info": machine_info,
     }

@@ -41,6 +41,16 @@ def test_supported_discovered_printer_models_are_allowed():
         is True
     )
     assert (
+        _is_supported_discovered_printer(SimpleNamespace(model=PrinterModel.CREATOR_5))
+        is True
+    )
+    assert (
+        _is_supported_discovered_printer(
+            SimpleNamespace(model=PrinterModel.CREATOR_5_PRO)
+        )
+        is True
+    )
+    assert (
         _is_supported_discovered_printer(SimpleNamespace(model=PrinterModel.ADVENTURER_4))
         is False
     )
@@ -54,6 +64,9 @@ def test_supported_detail_accepts_modern_printers_by_pid():
     assert _is_supported_detail(SimpleNamespace(pid=35, name="LegoTech82")) is True
     assert _is_supported_detail(SimpleNamespace(pid=36, name="Workshop")) is True
     assert _is_supported_detail(SimpleNamespace(pid=38, name="Renamed")) is True
+    # Creator 5 series
+    assert _is_supported_detail(SimpleNamespace(pid=40, name="C5")) is True
+    assert _is_supported_detail(SimpleNamespace(pid=41, name="C5 Pro")) is True
     # Legacy PIDs rejected
     assert _is_supported_detail(SimpleNamespace(pid=30, name="Whatever")) is False
 
@@ -64,6 +77,8 @@ def test_supported_detail_falls_back_to_name_when_pid_missing():
     assert _is_supported_detail(SimpleNamespace(pid=None, name="Adventurer 5M")) is True
     assert _is_supported_detail(SimpleNamespace(pid=None, name="Adventurer 5M Pro")) is True
     assert _is_supported_detail(SimpleNamespace(pid=None, name="AD5X")) is True
+    assert _is_supported_detail(SimpleNamespace(pid=None, name="Creator 5")) is True
+    assert _is_supported_detail(SimpleNamespace(pid=None, name="Creator 5 Pro")) is True
     assert _is_supported_detail(SimpleNamespace(pid=None, name="Adventurer 4")) is False
 
 
