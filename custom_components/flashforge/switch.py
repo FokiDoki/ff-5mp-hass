@@ -49,7 +49,9 @@ SWITCHES: tuple[FlashForgeSwitchEntityDescription, ...] = (
         is_on_fn=lambda data: bool(getattr(data, "camera_stream_url", "")),
         turn_on_fn=lambda client: client.control.turn_camera_on(),
         turn_off_fn=lambda client: client.control.turn_camera_off(),
-        availability_fn=lambda client: client.is_pro,
+        availability_fn=lambda client: bool(
+            getattr(client, "is_pro", False) or getattr(client, "is_creator5_pro", False)
+        ),
     ),
 )
 
