@@ -38,12 +38,17 @@ def test_led_switch_availability_uses_effective_client_capability():
 
 @pytest.mark.unit
 def test_camera_switch_availability_uses_pro_detection():
-    """Camera switch availability should still depend on the client Pro flag."""
+    """Camera switch availability should depend on either Pro-model client flag."""
     camera_switch = _switch_by_key("camera")
     client = Mock()
     client.is_pro = False
+    client.is_creator5_pro = False
 
     assert camera_switch.availability_fn(client) is False
 
     client.is_pro = True
+    assert camera_switch.availability_fn(client) is True
+
+    client.is_pro = False
+    client.is_creator5_pro = True
     assert camera_switch.availability_fn(client) is True
