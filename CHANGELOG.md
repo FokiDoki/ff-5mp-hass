@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-23
+
+### Fixed
+- **Camera switch now available on the Creator 5 series.** The camera power toggle (`switch.<printer>_camera`) was permanently `unavailable` on Creator 5 / Creator 5 Pro because its availability was gated solely on `client.is_pro` (Adventurer 5M Pro only). The gate now ORs `is_pro` and `is_creator5_pro`, matching the model-identity capability gating already used in `select.py` / `sensor.py`. Refs [#17](https://github.com/GhostTypes/ff-5mp-hass/issues/17).
+
+### Documentation
+- Clarified that the serial number entered during manual setup (and referenced in troubleshooting) must include the `SN` prefix (e.g. `SN123456789`), matching the value shown on the printer's settings screen rather than treating `SN` as a sticker label. Refs [#14](https://github.com/GhostTypes/ff-5mp-hass/issues/14).
+
 ## [1.3.0] - 2026-06-28
 
 ### Added
@@ -204,7 +212,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FlashForge Adventurer 5M Series
 - FlashForge Adventurer 4
 
-[Unreleased]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.1.9...v1.2.0
 [1.1.9]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.1.8...v1.1.9
