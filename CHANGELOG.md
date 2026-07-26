@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-07-26
+
+### Fixed
+
+- **Setup failures no longer blame the check code for everything.** Every failure in the config flow raised a bare `ConnectionError` and surfaced as *"Failed to connect to the printer. Please check the IP address and credentials."* — the only error message the flow had. A `/detail` response the library could not parse, an unreachable printer, and a genuinely rejected check code were indistinguishable, and all three pointed the user at their credentials. That is why [#18](https://github.com/GhostTypes/ff-5mp-hass/issues/18) collected two contradictory diagnoses of the same symptom: one reporter concluded the check code was wrong, another concluded the integration required TCP port 8899 (it does not — this integration is HTTP-only and never opens 8899). A new `InvalidAuthError` is now raised only when the printer itself answers and refuses, mapping to a distinct `invalid_auth` message; everything else stays `cannot_connect`, whose wording no longer asserts the credentials are at fault and points at the Home Assistant log instead. The setup path's `ConfigEntryNotReady` message was reworded the same way.
+
+### Changed
+
+- **Requires `flashforge-python-api>=1.3.3`**, which routes its diagnostics through `logging` rather than `print()`. Under Home Assistant the library's explanation of *why* a request failed previously went to stdout, where no user could reach it — which is what made #18 unresolvable from the reports alone. The real cause now appears in the Home Assistant log, with credentials, MAC, IP, and cloud registration codes redacted.
+
 ## [1.3.2] - 2026-07-26
 
 ### Changed
@@ -223,7 +233,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FlashForge Adventurer 5M Series
 - FlashForge Adventurer 4
 
-[Unreleased]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/GhostTypes/ff-5mp-hass/compare/v1.2.0...v1.3.0

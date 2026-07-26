@@ -3,7 +3,7 @@
 Guidance for AI coding assistants working in this repository.
 
 ## Current State (July 2026)
-- Integration **version 1.3.2** (in-flight; 1.3.1 tagged 2026-07-23).
+- Integration **version 1.3.3** (in-flight; 1.3.2 tagged 2026-07-26).
 - Provides a complete Home Assistant experience for FlashForge printers using the **HTTP API only**.
 - Entities shipped: **56 total** (38 sensors, 5 binary sensors, 2 switches, 4 buttons, 1 select, 1 MJPEG camera, 5 images — the g-code thumbnail plus 4 Material Station slot color swatches).
 - Diagnostics download supported (`diagnostics.py`), with credentials and identifiers redacted.
@@ -282,7 +282,7 @@ pytest tests/unit/ --cov=custom_components.flashforge --cov-report=term-missing
 pytest tests/unit/test_sensor_value_functions.py -v
 ```
 
-**Current coverage (125 tests total):**
+**Current coverage (131 tests total):**
 - `tests/unit/test_discovery.py` – printer discovery protocol
 - `tests/unit/test_sensor_value_functions.py` – sensor value extraction
 - `tests/unit/test_binary_sensor_value_functions.py` – binary sensor logic
