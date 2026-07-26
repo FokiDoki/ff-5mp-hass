@@ -80,7 +80,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         if not await client.send_product_command():
             await async_close_flashforge_client(client)
-            raise ConfigEntryNotReady("Printer rejected credentials; check code may be invalid")
+            # Not necessarily a credential problem: the library returns False
+            # both when the printer refuses and when the response could not be
+            # parsed. It logs the two distinctly (flashforge-python-api >=
+            # 1.3.3), so point there rather than asserting the check code is
+            # wrong - that assertion is what made issue #18 unreadable.
+            raise ConfigEntryNotReady(
+                "The printer did not accept the /product request. This usually means the "
+                "serial number or check code is wrong, but an unreadable response looks "
+                "the same from here - check the log for the specific cause."
+            )
     except Exception as err:  # noqa: BLE001
         _LOGGER.error("Error validating printer credentials: %s", err)
         await async_close_flashforge_client(client)

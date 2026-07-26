@@ -59,6 +59,18 @@ class UnsupportedPrinterError(ConnectionError):
     """Raised when the selected printer is outside the integration scope."""
 
 
+class InvalidAuthError(ConnectionError):
+    """Raised when the printer itself rejected the serial number or check code.
+
+    Deliberately distinct from a plain ConnectionError. Every failure in this
+    flow used to surface as "check the IP address and credentials", so a
+    response the library could not parse was reported to the user as a wrong
+    check code - see issue #18, where two reporters read the same message two
+    different ways and neither had a real credential problem. Only raise this
+    when the printer answered and refused.
+    """
+
+
 def _is_supported_detail(detail: Any) -> bool:
     """Return True when /detail identifies a supported model. Falls back to name if pid is absent."""
     if getattr(detail, "pid", None) in SUPPORTED_PIDS:
@@ -110,9 +122,15 @@ async def validate_connection(
 
         client.cache_details(machine_info)
 
-        # Validate credentials using the product endpoint (HTTP only)
+        # Validate credentials using the product endpoint (HTTP only).
+        #
+        # This is the only step that can genuinely mean "wrong check code", and
+        # even here the library returns False both for a refusal and for a
+        # response it could not parse. It logs the two distinctly (see
+        # `flashforge-python-api` >= 1.3.3), which is why the message below
+        # points at the log rather than asserting the credentials are wrong.
         if not await client.send_product_command():
-            raise ConnectionError("Printer rejected the provided credentials")
+            raise InvalidAuthError("Printer rejected the provided credentials")
 
         return {
             "title": data.get(CONF_NAME, DEFAULT_NAME),
@@ -287,6 +305,9 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             except UnsupportedPrinterError:
                 errors["base"] = "unsupported_printer"
+            except InvalidAuthError:
+                # Must precede ConnectionError - it is a subclass.
+                errors["base"] = "invalid_auth"
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception as err:
@@ -338,6 +359,9 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             except UnsupportedPrinterError:
                 errors["base"] = "unsupported_printer"
+            except InvalidAuthError:
+                # Must precede ConnectionError - it is a subclass.
+                errors["base"] = "invalid_auth"
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception as err:
@@ -374,6 +398,9 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await validate_connection(self.hass, candidate)
             except UnsupportedPrinterError:
                 errors["base"] = "unsupported_printer"
+            except InvalidAuthError:
+                # Must precede ConnectionError - it is a subclass.
+                errors["base"] = "invalid_auth"
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
@@ -415,6 +442,9 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await validate_connection(self.hass, candidate)
             except UnsupportedPrinterError:
                 errors["base"] = "unsupported_printer"
+            except InvalidAuthError:
+                # Must precede ConnectionError - it is a subclass.
+                errors["base"] = "invalid_auth"
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001

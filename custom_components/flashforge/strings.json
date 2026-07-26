@@ -53,7 +53,8 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to the printer. Please check the IP address and credentials.",
+      "cannot_connect": "Could not read a valid response from the printer. Check that the IP address is correct and the printer is reachable on your network. If the printer is reachable, the response may be one this integration could not read — check the Home Assistant log for details before assuming the credentials are wrong.",
+      "invalid_auth": "The printer rejected the serial number or check code. Verify both on the printer's screen (the serial number includes the SN prefix). If they are correct, check the Home Assistant log — an unreadable response from the printer looks the same from here.",
       "no_printers_found": "No FlashForge printers found on the network. Please use manual configuration.",
       "unsupported_printers_found": "Only AD5X, Adventurer 5M, Adventurer 5M Pro, Creator 5, and Creator 5 Pro printers are supported by this integration.",
       "discovery_failed": "Failed to discover printers. Please use manual configuration.",
