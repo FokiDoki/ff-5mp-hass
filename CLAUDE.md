@@ -3,13 +3,13 @@
 Guidance for AI coding assistants working in this repository.
 
 ## Current State (July 2026)
-- Integration **version 1.3.3** (in-flight; 1.3.2 tagged 2026-07-26).
+- Integration **version 1.3.4** (in-flight; 1.3.3 tagged 2026-07-26).
 - Provides a complete Home Assistant experience for FlashForge printers using the **HTTP API only**.
 - Entities shipped: **56 total** (38 sensors, 5 binary sensors, 2 switches, 4 buttons, 1 select, 1 MJPEG camera, 5 images — the g-code thumbnail plus 4 Material Station slot color swatches).
 - Diagnostics download supported (`diagnostics.py`), with credentials and identifiers redacted.
 - Reauthentication and reconfigure flows supported in addition to the original setup paths.
 - UI config flow supports automatic discovery, manual entry, credential validation, and an adjustable polling interval (5–300 s, default 10 s).
-- Depends on `flashforge-python-api>=1.3.0` from the companion repository `ff-5mp-api-py`.
+- Depends on `flashforge-python-api>=1.3.4` from the companion repository `ff-5mp-api-py`.
 
 ## Development Requirements
 - **Home Assistant Core**: 2026.4.2 (current stable)
@@ -357,10 +357,13 @@ pytest tests/unit/test_sensor_value_functions.py -v
 - **HTTP-first policy** – Do not introduce direct TCP/G-code communication here. If unavoidable, extend the API library (`ff-5mp-api-py`) and consume it via HTTP-style helpers.
 - **Coordinator as source of truth** – Entities derive state from the coordinator’s latest `FFMachineInfo`. Avoid storing custom copies of printer state in entities.
 - **PID for model identity, never the printer name** – Modern HTTP printers report a stable firmware-set integer `pid` on `/detail` (35 = Adventurer 5M, 36 = 5M Pro, 38 = AD5X, 40 = Creator 5, 41 = Creator 5 Pro). The integration enforces this in TWO places that should both stay in sync:
-  - `config_flow.py` `_is_supported_detail()` reads the raw `/detail` payload during pairing and rejects PIDs not in `SUPPORTED_PIDS = {35, 36, 38, 40, 41}`. This is the early gate — runs before any `FFMachineInfo` parsing happens.
-  - The library (`flashforge-python-api>=1.3.0`) populates `FFMachineInfo.is_pro` / `is_ad5x` / `is_creator5` / `is_creator5_pro` / `pid` from the same value. This is the runtime gate — used by `switch.py` for LED availability and by `sensor.py` / `select.py` for model-identity capability gating.
+  - `config_flow.py` `_is_supported_detail()` reads the raw `/detail` payload during pairing and rejects PIDs not in `SUPPORTED_PIDS = {35, 36, 38, 40, 41}`. This is the early gate, and "early" is load-bearing: it consumes `client.info.get_detail_raw()` (the undecoded JSON dict), so it runs before **any** validation, not just before `FFMachineInfo` parsing. Until v1.3.4 it read `pid` off a parsed `FFPrinterDetail`, which meant a supported Creator 5 could be turned away because an unrelated field (`chamberTemp: -108`) failed validation first — see issue #18. Never move this gate back onto a parsed model.
+  - The library (`flashforge-python-api>=1.3.4`) populates `FFMachineInfo.is_pro` / `is_ad5x` / `is_creator5` / `is_creator5_pro` / `pid` from the same value. This is the runtime gate — used by `switch.py` for LED availability and by `sensor.py` / `select.py` for model-identity capability gating.
   - Both gates are needed: the config-flow gate stops unsupported hardware from being added at all; the runtime gate keeps capability flags accurate after pairing. Do NOT substring-match `info.name` — it's user-mutable and broke detection in v1.1.8 (see issue #13 / v1.1.9 fix). When new modern PIDs ship, update `SUPPORTED_PIDS` here AND coordinate a library bump.
 - **Error handling** – Wrap connection issues in `ConfigEntryNotReady`, `ConnectionError`, or `UpdateFailed` so Home Assistant retries gracefully.
+- **"Could not read the answer" is not "could not reach the printer"** – The library returns `None` when a request never got through and raises `FlashForgeResponseError` when the printer answered with a payload it could not parse. Keep the two apart all the way to the user: the config flow maps the exception to `invalid_response` (never `cannot_connect`), and `__init__.py` / `coordinator.py` log it with wording that sends the user to the issue tracker rather than to their router. Collapsing them is what made issue #18 take three releases — the printer was reachable and the credentials were correct the entire time, but every message on offer said otherwise.
+- **Never constrain the *range* of data received from the printer** – This applies to the API library, but the integration is what breaks when it is violated. Pydantic validates a model all-or-nothing, so a `ge=`/`le=` on any one of ~50 `/detail` fields can fail the whole response and take every entity offline. Firmware also signals absent hardware with out-of-band sentinels (`chamberTemp: -108`) rather than by omitting the field, so "impossible" values are normal. Inbound models validate types only; range constraints belong on outbound command models, where a bad value is our own bug. If a new field needs bounds, normalize it in the parser, don't reject it.
+- **Gate capabilities on what the printer reported, not on its model family** – Options exist within a family: the heated chamber is a Creator 5 extra, so chamber entities gate on `has_chamber_sensor`, not `is_creator5`. Model identity is the right signal only for things the model genuinely cannot do at all (filtration, the Creator 5 camera switch).
 - **Entity additions**
   - Add to the appropriate entity tuple.
   - Provide unique `key`, icon, units, and defensive `value_fn`.

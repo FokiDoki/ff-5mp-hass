@@ -4,7 +4,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from flashforge import FlashForgeClient, PrinterDiscovery, PrinterModel
+from flashforge import (
+    FlashForgeClient,
+    FlashForgeResponseError,
+    PrinterDiscovery,
+    PrinterModel,
+)
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -71,12 +76,27 @@ class InvalidAuthError(ConnectionError):
     """
 
 
+def _detail_field(detail: Any, name: str) -> Any:
+    """Read a field from /detail whether it arrived as a raw dict or a parsed model."""
+    if isinstance(detail, dict):
+        return detail.get(name)
+    return getattr(detail, name, None)
+
+
 def _is_supported_detail(detail: Any) -> bool:
-    """Return True when /detail identifies a supported model. Falls back to name if pid is absent."""
-    if getattr(detail, "pid", None) in SUPPORTED_PIDS:
+    """Return True when /detail identifies a supported model. Falls back to name if pid is absent.
+
+    Accepts the raw decoded dict as well as a parsed model, and that matters:
+    run against a parsed model, this gate can only be reached once the entire
+    ~50-field payload has validated, so a supported printer gets rejected over a
+    field with no bearing on whether it is supported. That is exactly how a
+    Creator 5 (pid 40) reporting `chamberTemp: -108` ended up refused in issue
+    #18. Identity is read from the raw JSON so the gate is genuinely early.
+    """
+    if _detail_field(detail, "pid") in SUPPORTED_PIDS:
         return True
 
-    printer_name = (getattr(detail, "name", "") or "").upper()
+    printer_name = (_detail_field(detail, "name") or "").upper()
     return (
         "ADVENTURER 5M" in printer_name
         or "ADVENTURER5M" in printer_name
@@ -107,15 +127,22 @@ async def validate_connection(
     )
 
     try:
-        detail_response = await client.info.get_detail_response()
-        if detail_response is None or detail_response.detail is None:
+        # Identity first, from the undecoded payload. Reading `pid` here means
+        # the supported-model gate cannot be defeated by an unrelated field
+        # failing validation further down (issue #18).
+        raw_detail = await client.info.get_detail_raw()
+        if raw_detail is None or not raw_detail.get("detail"):
             raise ConnectionError("Failed to retrieve printer information")
 
-        if not _is_supported_detail(detail_response.detail):
+        if not _is_supported_detail(raw_detail["detail"]):
             raise UnsupportedPrinterError(
                 "Only AD5X, Adventurer 5M, Adventurer 5M Pro, Creator 5, and Creator 5 Pro printers are supported"
             )
 
+        # Now the validated read. A FlashForgeResponseError from here means the
+        # printer answered with something the library could not parse, which is
+        # a bug report, not a network problem - so it deliberately propagates
+        # instead of being flattened into ConnectionError.
         machine_info = await client.info.get()
         if machine_info is None:
             raise ConnectionError("Failed to retrieve printer information")
@@ -308,6 +335,19 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except InvalidAuthError:
                 # Must precede ConnectionError - it is a subclass.
                 errors["base"] = "invalid_auth"
+            except FlashForgeResponseError as err:
+                # The printer answered, but with a payload the library could not
+                # read. Reporting this as `cannot_connect` sent issue #18's
+                # reporter chasing their network for three releases, so it gets
+                # its own message pointing at the logs and the issue tracker.
+                _LOGGER.error(
+                    "The printer answered, but its response could not be read. This is a "
+                    "bug in the integration, not a connection problem - please report it "
+                    "at https://github.com/GhostTypes/ff-5mp-hass/issues with debug logs "
+                    "enabled. %s",
+                    err,
+                )
+                errors["base"] = "invalid_response"
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception as err:
@@ -362,6 +402,19 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except InvalidAuthError:
                 # Must precede ConnectionError - it is a subclass.
                 errors["base"] = "invalid_auth"
+            except FlashForgeResponseError as err:
+                # The printer answered, but with a payload the library could not
+                # read. Reporting this as `cannot_connect` sent issue #18's
+                # reporter chasing their network for three releases, so it gets
+                # its own message pointing at the logs and the issue tracker.
+                _LOGGER.error(
+                    "The printer answered, but its response could not be read. This is a "
+                    "bug in the integration, not a connection problem - please report it "
+                    "at https://github.com/GhostTypes/ff-5mp-hass/issues with debug logs "
+                    "enabled. %s",
+                    err,
+                )
+                errors["base"] = "invalid_response"
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception as err:
@@ -401,6 +454,19 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except InvalidAuthError:
                 # Must precede ConnectionError - it is a subclass.
                 errors["base"] = "invalid_auth"
+            except FlashForgeResponseError as err:
+                # The printer answered, but with a payload the library could not
+                # read. Reporting this as `cannot_connect` sent issue #18's
+                # reporter chasing their network for three releases, so it gets
+                # its own message pointing at the logs and the issue tracker.
+                _LOGGER.error(
+                    "The printer answered, but its response could not be read. This is a "
+                    "bug in the integration, not a connection problem - please report it "
+                    "at https://github.com/GhostTypes/ff-5mp-hass/issues with debug logs "
+                    "enabled. %s",
+                    err,
+                )
+                errors["base"] = "invalid_response"
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001
@@ -445,6 +511,19 @@ class FlashForgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except InvalidAuthError:
                 # Must precede ConnectionError - it is a subclass.
                 errors["base"] = "invalid_auth"
+            except FlashForgeResponseError as err:
+                # The printer answered, but with a payload the library could not
+                # read. Reporting this as `cannot_connect` sent issue #18's
+                # reporter chasing their network for three releases, so it gets
+                # its own message pointing at the logs and the issue tracker.
+                _LOGGER.error(
+                    "The printer answered, but its response could not be read. This is a "
+                    "bug in the integration, not a connection problem - please report it "
+                    "at https://github.com/GhostTypes/ff-5mp-hass/issues with debug logs "
+                    "enabled. %s",
+                    err,
+                )
+                errors["base"] = "invalid_response"
             except ConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:  # noqa: BLE001

@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import logging
 
-from flashforge import FlashForgeClient, FiveMClientConnectionOptions
+from flashforge import (
+    FiveMClientConnectionOptions,
+    FlashForgeClient,
+    FlashForgeResponseError,
+)
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_IP_ADDRESS, CONF_NAME, Platform
@@ -66,6 +70,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Initialize the client via HTTP only
     try:
         machine_info = await client.info.get()
+    except FlashForgeResponseError as err:
+        # Still ConfigEntryNotReady - a firmware payload we cannot read may well
+        # become readable after an integration update, so HA should keep
+        # retrying. The distinction is in the message, which has to send the
+        # user to the issue tracker rather than to their router (issue #18).
+        _LOGGER.error(
+            "The printer answered, but its response could not be read. This is an "
+            "integration bug, not a connection problem - please report it at "
+            "https://github.com/GhostTypes/ff-5mp-hass/issues with debug logs enabled. %s",
+            err,
+        )
+        await async_close_flashforge_client(client)
+        raise ConfigEntryNotReady(
+            f"The printer's response could not be read (this is not a connectivity "
+            f"problem; please report it): {err}"
+        ) from err
     except Exception as err:  # noqa: BLE001 - upstream may raise broad exceptions
         _LOGGER.error("Error retrieving printer status: %s", err)
         await async_close_flashforge_client(client)

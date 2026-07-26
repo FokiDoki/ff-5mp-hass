@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2026-07-26
+
+### Fixed
+
+- **A Creator 5 without a heated chamber can now be set up at all.** This is the actual cause of [#18](https://github.com/GhostTypes/ff-5mp-hass/issues/18), which v1.3.2 and v1.3.3 improved the *reporting* of without fixing. Firmware on a Creator 5 with no chamber heater reports `chamberTemp: -108` — a sentinel meaning "this sensor does not exist" — and the API library's model rejected any chamber temperature below `-50 °C`. That one field failed validation for the entire `/detail` response, the library returned "no data", and the config flow reported `cannot_connect`. The printer was reachable and the check code was correct the whole time. Fixed in `flashforge-python-api` 1.3.4, which maps the sentinel to "not reported"; the minimum requirement is raised accordingly. Diagnosed from the reporter's debug log — thank you.
+
+- **Chamber temperature entities are no longer created for printers without a chamber.** They were gated on the Creator 5 model family, but the heated chamber is an *option* within that family, so chamber-less units got two entities permanently reading 0 °C. They now follow the library's new `has_chamber_sensor` flag, which reflects what the printer actually reported.
+
+- **The supported-printer check no longer depends on the rest of the payload being readable.** `_is_supported_detail()` read `pid` off a fully parsed `/detail`, so it could only run once all ~50 fields had validated — meaning a supported Creator 5 (pid 40) was turned away over a chamber reading that has no bearing on whether it is supported. Identity is now read from the raw JSON response before any validation, which is what the "early gate" was always documented to be.
+
+### Added
+
+- **A distinct `invalid_response` error for payloads the integration cannot read.** Previously these arrived as `cannot_connect`, which is why #18's reporter spent three releases checking their network and their check code for what was a schema bug. The new message states plainly that this is not a network or credential problem and links the issue tracker. The setup path and the update coordinator log it with matching wording, so the Home Assistant log no longer describes a responsive printer as a communication failure. With this case routed to its own error, `cannot_connect` and `invalid_auth` no longer have to hedge — each now describes only its own cause.
+
+### Changed
+
+- **Requires `flashforge-python-api>=1.3.4`**, which stops validating value *ranges* on data received from the printer. Range constraints sat on roughly 30 `/detail` fields, and because Pydantic validates a model all-or-nothing, any one of them could take the whole integration offline the way `chamberTemp` did — on `tvoc`, `printSpeedAdjust`, `fillAmount`, or any other field, on any firmware revision. Inbound data is now taken as it comes; the library still errors when something genuinely required is missing.
+
 ## [1.3.3] - 2026-07-26
 
 ### Fixed

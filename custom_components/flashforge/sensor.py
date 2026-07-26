@@ -89,8 +89,20 @@ def _active_ifs_slot(data: FFMachineInfo) -> int | None:
 
 
 def _is_creator5_series(data: FFMachineInfo) -> bool:
-    """Creator 5 / Creator 5 Pro (4-tool tool-changer with a heated chamber)."""
+    """Creator 5 / Creator 5 Pro (4-tool tool-changer)."""
     return bool(getattr(data, "is_creator5", False) or getattr(data, "is_creator5_pro", False))
+
+
+def _has_chamber(data: FFMachineInfo) -> bool:
+    """True only when the printer actually reported a chamber temperature.
+
+    The heated chamber is a Creator 5 series *option*, not a family trait.
+    Gating on the model alone gave chamber-less units two entities pinned at
+    0 C, because firmware reports the absent sensor as -108 rather than by
+    omitting the field (issue #18). The library normalizes that sentinel away
+    and sets `has_chamber_sensor` from what was actually reported.
+    """
+    return bool(getattr(data, "has_chamber_sensor", False))
 
 
 def _has_air_quality(data: FFMachineInfo) -> bool:
@@ -378,7 +390,9 @@ TOOLHEAD_SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = tuple(
     for i in range(1, 5)
 )
 
-# Creator 5 series: heated chamber (current + target).
+# Heated chamber (current + target). Gated on the sensor actually reporting,
+# NOT on the Creator 5 model family - the chamber is an option within that
+# family, and units without it used to show two entities stuck at 0 C.
 CHAMBER_SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
     FlashForgeSensorEntityDescription(
         key="chamber_temperature",
@@ -388,7 +402,7 @@ CHAMBER_SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:thermometer",
         value_fn=lambda data: round(data.chamber.current, 2) if data.chamber else 0,
-        availability_fn=_is_creator5_series,
+        availability_fn=_has_chamber,
     ),
     FlashForgeSensorEntityDescription(
         key="chamber_target_temperature",
@@ -398,7 +412,7 @@ CHAMBER_SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:thermometer",
         value_fn=lambda data: round(data.chamber.set, 2) if data.chamber else 0,
-        availability_fn=_is_creator5_series,
+        availability_fn=_has_chamber,
     ),
 )
 
