@@ -17,10 +17,17 @@ sys.path.insert(0, str(project_root))
 
 # Mock Home Assistant modules before importing integration code
 from tests.ha_mocks import mock_homeassistant
+
 mock_homeassistant()
 
-from custom_components.flashforge.sensor import SENSORS, _completion_time
 from flashforge.models import MachineState
+
+from custom_components.flashforge.sensor import (
+    SENSORS,
+    _completion_time,
+    _remaining_time,
+    _slicer_total_time,
+)
 
 
 @pytest.mark.unit
@@ -254,6 +261,63 @@ class TestSensorValueFunctions:
         sensor = self.get_sensor_by_key("remaining_time")
         assert sensor.value_fn(self.mock_data) == 0
 
+    @pytest.mark.parametrize(
+        ("file_name", "expected"),
+        [
+            ("model_PETG_4h13m.gcode", 15180),
+            ("model_PETG_2m1s.gcode", 121),
+            ("model_1d2h3m4s.gcode", 93784),
+            ("model_45s.gcode", 45),
+            ("model_9mm.gcode", None),
+            ("model_without_time.gcode", None),
+        ],
+    )
+    def test_slicer_total_time_from_filename(self, file_name, expected):
+        """Slicer filename estimates are parsed without mistaking dimensions for time."""
+        assert _slicer_total_time(file_name) == expected
+
+    def test_remaining_time_falls_back_to_slicer_filename(self):
+        """A slicer total in the filename replaces firmware estimatedTime=0."""
+        self.mock_data.machine_state = MachineState.PRINTING
+        self.mock_data.estimated_time = 0
+        self.mock_data.print_duration = 3809
+        self.mock_data.print_progress = 0.1807149201631546
+        self.mock_data.print_file_name = (
+            "Gridfinity_Deep_1x1x3_ff_9mm_label_PETG_4h13m.gcode"
+        )
+
+        assert _remaining_time(self.mock_data) == 11371
+
+    def test_remaining_time_prefers_firmware_estimate(self):
+        """A positive firmware estimate wins over derived fallbacks."""
+        self.mock_data.machine_state = MachineState.PRINTING
+        self.mock_data.estimated_time = 600
+        self.mock_data.print_duration = 3809
+        self.mock_data.print_progress = 0.1807149201631546
+        self.mock_data.print_file_name = "model_PETG_4h13m.gcode"
+
+        assert _remaining_time(self.mock_data) == 600
+
+    def test_remaining_time_falls_back_to_elapsed_progress(self):
+        """Files without a slicer suffix still get a coarse ETA."""
+        self.mock_data.machine_state = MachineState.PRINTING
+        self.mock_data.estimated_time = 0
+        self.mock_data.print_duration = 3600
+        self.mock_data.print_progress = 0.25
+        self.mock_data.print_file_name = "renamed.gcode"
+
+        assert _remaining_time(self.mock_data) == 10800
+
+    def test_remaining_time_fallback_requires_active_print(self):
+        """Stale filename and progress data do not create an ETA while idle."""
+        self.mock_data.machine_state = MachineState.READY
+        self.mock_data.estimated_time = 0
+        self.mock_data.print_duration = 3600
+        self.mock_data.print_progress = 0.25
+        self.mock_data.print_file_name = "model_PETG_4h13m.gcode"
+
+        assert _remaining_time(self.mock_data) == 0
+
     def test_filament_length_rounded(self):
         """Test filament_length sensor rounds to 2 decimals."""
         sensor = self.get_sensor_by_key("filament_length")
@@ -434,7 +498,9 @@ class TestSensorValueFunctions:
     def test_print_completion_time_adds_timezone_to_naive_datetime(self):
         """Naive completion_time gets stamped with HA's default timezone (HA 2026 fix)."""
         self.mock_data.machine_state = MachineState.PRINTING
-        self.mock_data.completion_time = datetime(2026, 6, 26, 9, 47, 12)  # naive
+        self.mock_data.completion_time = datetime(  # noqa: DTZ001 - intentional naive input
+            2026, 6, 26, 9, 47, 12
+        )
         result = _completion_time(self.mock_data)
         assert result is not None
         assert result.tzinfo is not None
@@ -443,7 +509,9 @@ class TestSensorValueFunctions:
     def test_print_completion_time_returns_none_when_not_printing(self):
         """Completion time is None unless actively printing/heating."""
         self.mock_data.machine_state = MachineState.READY
-        self.mock_data.completion_time = datetime(2026, 6, 26, 9, 47, 12)
+        self.mock_data.completion_time = datetime(  # noqa: DTZ001 - intentional naive input
+            2026, 6, 26, 9, 47, 12
+        )
         assert _completion_time(self.mock_data) is None
 
     def test_print_completion_time_preserves_aware_datetime(self):
@@ -456,6 +524,21 @@ class TestSensorValueFunctions:
         result = _completion_time(self.mock_data)
         assert result is not None
         assert result.tzinfo is aware.tzinfo
+
+    def test_print_completion_time_uses_remaining_time_fallback(self):
+        """Completion timestamp uses the same fallback as remaining_time."""
+        from datetime import timezone
+
+        self.mock_data.machine_state = MachineState.PRINTING
+        self.mock_data.estimated_time = 0
+        self.mock_data.print_duration = 3809
+        self.mock_data.print_progress = 0.1807149201631546
+        self.mock_data.print_file_name = "model_PETG_4h13m.gcode"
+        observed_at = datetime(2026, 7, 30, 15, 0, tzinfo=timezone.utc)
+
+        result = _completion_time(self.mock_data, now=observed_at)
+
+        assert result == datetime(2026, 7, 30, 18, 9, tzinfo=timezone.utc)
 
     def test_all_sensors_have_value_fn(self):
         """Verify all sensors have a value_fn defined."""

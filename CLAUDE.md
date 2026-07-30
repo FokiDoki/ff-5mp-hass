@@ -3,7 +3,7 @@
 Guidance for AI coding assistants working in this repository.
 
 ## Current State (July 2026)
-- Integration **version 1.3.4** (in-flight; 1.3.3 tagged 2026-07-26).
+- Integration **version 1.3.5** (in-flight; 1.3.4 tagged 2026-07-26).
 - Provides a complete Home Assistant experience for FlashForge printers using the **HTTP API only**.
 - Entities shipped: **56 total** (38 sensors, 5 binary sensors, 2 switches, 4 buttons, 1 select, 1 MJPEG camera, 5 images — the g-code thumbnail plus 4 Material Station slot color swatches).
 - Diagnostics download supported (`diagnostics.py`), with credentials and identifiers redacted.
@@ -363,6 +363,7 @@ pytest tests/unit/test_sensor_value_functions.py -v
 - **Error handling** – Wrap connection issues in `ConfigEntryNotReady`, `ConnectionError`, or `UpdateFailed` so Home Assistant retries gracefully.
 - **"Could not read the answer" is not "could not reach the printer"** – The library returns `None` when a request never got through and raises `FlashForgeResponseError` when the printer answered with a payload it could not parse. Keep the two apart all the way to the user: the config flow maps the exception to `invalid_response` (never `cannot_connect`), and `__init__.py` / `coordinator.py` log it with wording that sends the user to the issue tracker rather than to their router. Collapsing them is what made issue #18 take three releases — the printer was reachable and the credentials were correct the entire time, but every message on offer said otherwise.
 - **Never constrain the *range* of data received from the printer** – This applies to the API library, but the integration is what breaks when it is violated. Pydantic validates a model all-or-nothing, so a `ge=`/`le=` on any one of ~50 `/detail` fields can fail the whole response and take every entity offline. Firmware also signals absent hardware with out-of-band sentinels (`chamberTemp: -108`) rather than by omitting the field, so "impossible" values are normal. Inbound models validate types only; range constraints belong on outbound command models, where a bad value is our own bug. If a new field needs bounds, normalize it in the parser, don't reject it.
+- **A zero firmware ETA is not proof that no estimate exists** – Adventurer 5M firmware can report `estimatedTime: 0` for an entire active print while still reporting elapsed time, fractional progress, and a slicer-generated filename ending in a duration such as `4h13m`. Keep Remaining Time and Print Completion Time on the shared `_remaining_time()` path: prefer a positive firmware ETA, then the filename's slicer total minus elapsed time, then elapsed/progress extrapolation. Only derive fallbacks in an active print state so stale idle fields do not invent an ETA.
 - **Gate capabilities on what the printer reported, not on its model family** – Options exist within a family: the heated chamber is a Creator 5 extra, so chamber entities gate on `has_chamber_sensor`, not `is_creator5`. Model identity is the right signal only for things the model genuinely cannot do at all (filtration, the Creator 5 camera switch).
 - **Entity additions**
   - Add to the appropriate entity tuple.

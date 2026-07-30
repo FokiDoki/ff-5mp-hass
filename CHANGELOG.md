@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] - 2026-07-30
+
+### Fixed
+
+- **Remaining Time and Print Completion Time no longer stay at `0` / `unknown` when Adventurer 5M firmware reports `estimatedTime: 0` throughout an active print.** Both sensors now use one shared estimate with explicit precedence: a positive firmware estimate first; otherwise the slicer duration commonly embedded at the end of the current filename (for example `4h13m`) minus elapsed time; otherwise an elapsed-time/progress extrapolation for renamed files. Idle printers do not derive an estimate from stale job fields. Confirmed read-only on a printing Adventurer 5M whose `/detail` response reported nonzero elapsed time and progress alongside `estimatedTime: 0`.
+
 ## [1.3.4] - 2026-07-26
 
 ### Fixed

@@ -202,7 +202,8 @@
 | `sensor.flashforge_current_layer` | Current layer number | - |
 | `sensor.flashforge_total_layers` | Total layer count | - |
 | `sensor.flashforge_elapsed_time` | Time spent printing | seconds |
-| `sensor.flashforge_remaining_time` | Estimated time remaining | seconds |
+| `sensor.flashforge_remaining_time` | Estimated time remaining (printer estimate, slicer filename estimate, or elapsed/progress fallback) | seconds |
+| `sensor.flashforge_print_completion_time` | Estimated wall-clock print completion time, using the same estimate as Remaining Time | timestamp |
 | `sensor.flashforge_filament_length` | Estimated filament length needed | meters |
 | `sensor.flashforge_filament_weight` | Estimated filament weight | grams |
 | `sensor.flashforge_print_speed` | Speed adjustment percentage | % |

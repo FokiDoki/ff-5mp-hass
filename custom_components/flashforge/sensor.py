@@ -1,13 +1,12 @@
 """Sensor platform for FlashForge integration."""
 from __future__ import annotations
 
+import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
-import logging
+from datetime import datetime, timedelta
 from typing import Any
-
-from flashforge.models import FFMachineInfo, MachineState
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -29,8 +28,9 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
 from homeassistant.util import dt as dt_util
+
+from flashforge.models import FFMachineInfo, MachineState
 
 from .const import DOMAIN
 from .coordinator import FlashForgeDataUpdateCoordinator
@@ -40,8 +40,86 @@ _LOGGER = logging.getLogger(__name__)
 
 MACHINE_STATE_OPTIONS = [state.value for state in MachineState]
 
+_ACTIVE_PRINT_STATES = (
+    MachineState.PRINTING,
+    MachineState.PAUSED,
+    MachineState.PAUSING,
+    MachineState.HEATING,
+)
 
-def _parse_disk_space_mb(raw: str | float | int | None) -> float | None:
+# Slicers such as OrcaSlicer commonly append their estimate to the generated
+# filename (for example ``model_PETG_4h13m.gcode``). Adventurer 5M firmware can
+# report ``estimatedTime: 0`` throughout a print even though this suffix,
+# elapsed time, and progress are all populated.
+_SLICER_DURATION_RE = re.compile(
+    r"(?:^|[_\s-])(?=\d+[dhms])"
+    r"(?:(?P<days>\d+)d)?"
+    r"(?:(?P<hours>\d+)h)?"
+    r"(?:(?P<minutes>\d+)m)?"
+    r"(?:(?P<seconds>\d+)s)?"
+    r"(?:\.[^.]+)*$",
+    re.IGNORECASE,
+)
+
+
+def _seconds_or_zero(value: object) -> int:
+    """Normalize a duration-like value to non-negative whole seconds."""
+    try:
+        return max(0, int(float(value or 0)))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def _slicer_total_time(file_name: str | None) -> int | None:
+    """Extract a slicer total-time suffix such as ``4h13m`` from a filename."""
+    if not file_name:
+        return None
+    match = _SLICER_DURATION_RE.search(file_name)
+    if match is None:
+        return None
+    parts = {
+        key: int(value) if value is not None else 0
+        for key, value in match.groupdict().items()
+    }
+    return (
+        parts["days"] * 86400
+        + parts["hours"] * 3600
+        + parts["minutes"] * 60
+        + parts["seconds"]
+    )
+
+
+def _remaining_time(data: FFMachineInfo) -> int:
+    """Return the best available remaining-print estimate in seconds.
+
+    Prefer the printer's own remaining-time field when it is usable. Some 5M
+    firmware reports that field as zero for the whole job, so fall back to the
+    slicer's total-time suffix minus elapsed time. Files without such a suffix
+    still get a coarse elapsed/progress extrapolation.
+    """
+    reported_remaining = _seconds_or_zero(getattr(data, "estimated_time", 0))
+    if reported_remaining:
+        return reported_remaining
+
+    if getattr(data, "machine_state", None) not in _ACTIVE_PRINT_STATES:
+        return 0
+
+    elapsed = _seconds_or_zero(getattr(data, "print_duration", 0))
+    slicer_total = _slicer_total_time(getattr(data, "print_file_name", None))
+    if slicer_total is not None and slicer_total > elapsed:
+        return slicer_total - elapsed
+
+    try:
+        progress = float(getattr(data, "print_progress", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        progress = 0
+    if elapsed and 0 < progress < 1:
+        return max(0, round(elapsed * (1 - progress) / progress))
+
+    return 0
+
+
+def _parse_disk_space_mb(raw: str | float | None) -> float | None:
     """Convert the library's pre-formatted disk-space value back into a float (MB)."""
     if raw is None or raw == "":
         return None
@@ -51,7 +129,9 @@ def _parse_disk_space_mb(raw: str | float | int | None) -> float | None:
         return None
 
 
-def _completion_time(data: FFMachineInfo) -> datetime | None:
+def _completion_time(
+    data: FFMachineInfo, *, now: datetime | None = None
+) -> datetime | None:
     """Return the absolute completion timestamp, rounded to the minute.
 
     HA 2026 rejects naive datetimes on timestamp sensors, so if the library's
@@ -60,16 +140,21 @@ def _completion_time(data: FFMachineInfo) -> datetime | None:
 
     Timezone-stamping approach adapted from pcamp96 (GhostTypes/ff-5mp-hass#15).
     """
-    if not data.estimated_time:
+    remaining = _remaining_time(data)
+    if not remaining:
         return None
-    if data.machine_state not in (
-        MachineState.PRINTING,
-        MachineState.PAUSED,
-        MachineState.PAUSING,
-        MachineState.HEATING,
-    ):
+    if data.machine_state not in _ACTIVE_PRINT_STATES:
         return None
-    ts = data.completion_time
+
+    # The library timestamp is based on the firmware's estimatedTime value. It
+    # cannot represent our fallbacks when that value is zero, so derive the
+    # timestamp from the same remaining value exposed by the duration sensor.
+    ts = (
+        data.completion_time
+        if _seconds_or_zero(getattr(data, "estimated_time", 0))
+        else (now or datetime.now(dt_util.DEFAULT_TIME_ZONE))
+        + timedelta(seconds=remaining)
+    )
     if ts is None:
         return None
     ts = ts.replace(second=0, microsecond=0)
@@ -222,7 +307,7 @@ _BASE_SENSORS: tuple[FlashForgeSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.SECONDS,
         icon="mdi:timer-sand",
-        value_fn=lambda data: int(data.estimated_time) if data.estimated_time else 0,
+        value_fn=_remaining_time,
     ),
     FlashForgeSensorEntityDescription(
         key="print_completion_time",
